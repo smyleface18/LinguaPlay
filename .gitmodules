@@ -1,0 +1,6 @@
+[submodule "LP-API"]
+	path = LP-API
+	url = https://github.com/smyleface18/LP-API.git
+[submodule "LP-MOB"]
+	path = LP-MOB
+	url = https://github.com/smyleface18/LP-MOB.git
