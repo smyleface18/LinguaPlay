@@ -27,14 +27,12 @@ Cada uno de estos directorios es **un repositorio independiente gestionado como 
 
 Para clonar el proyecto correctamente junto con todos sus submódulos:
 
-```bash
-git clone --recurse-submodules <URL_DEL_REPOSITORIO>
-```
+
 
 Ejemplo:
 
 ```bash
-git clone --recurse-submodules https://github.com/tu-org/linguaplay.git
+git clone --recurse-submodules https://github.com/smyleface18/LinguaPlay.git
 ```
 
 Este comando descargará:
