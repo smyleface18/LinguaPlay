@@ -1,6 +1,15 @@
 [submodule "LP-API"]
-	path = LP-API
+	path = apps/LP-API
 	url = https://github.com/smyleface18/LP-API.git
 [submodule "LP-MOB"]
-	path = LP-MOB
+	path = apps/LP-MOB
+	url = https://github.com/smyleface18/LP-MOB.git
+[submodule "linguaplay-core"]
+	path = linguaplay-core
+	url = https://github.com/smyleface18/linguaplay-core.git
+[submodule "apps/LP-API"]
+	path = apps/LP-API
+	url = https://github.com/smyleface18/LP-API.git
+[submodule "apps/LP-MOB"]
+	path = apps/LP-MOB
 	url = https://github.com/smyleface18/LP-MOB.git
