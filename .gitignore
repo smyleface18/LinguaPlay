@@ -1,0 +1,26 @@
+# Dependencias - ¡ESTO ES CRÍTICO!
+node_modules/
+**/node_modules/
+
+# Construcción
+dist/
+build/
+apps/*/dist/
+packages/*/dist/
+
+# Cache y logs
+.turbo/
+.cache/
+*.log
+.DS_Store
+
+# Entorno
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+index.html
