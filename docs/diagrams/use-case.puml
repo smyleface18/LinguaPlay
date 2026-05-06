@@ -1,0 +1,53 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "Player" as Player
+actor "Admin" as Admin
+actor "AWS Cognito" as Cognito
+
+rectangle "LinguaPlay System" {
+  usecase "Sign up" as UC_SignUp
+  usecase "Sign in" as UC_SignIn
+  usecase "Refresh token" as UC_Refresh
+  usecase "View profile" as UC_Profile
+  usecase "Sign out" as UC_SignOut
+
+  usecase "Play game" as UC_Play
+  usecase "Create match" as UC_Create
+  usecase "Join match" as UC_Join
+  usecase "Start match" as UC_Start
+  usecase "Answer question" as UC_Answer
+  usecase "View results" as UC_Results
+
+  usecase "Manage categories" as UC_Categories
+  usecase "Manage questions" as UC_Questions
+  usecase "Manage question options" as UC_Options
+}
+
+Player --> UC_SignUp
+Player --> UC_SignIn
+Player --> UC_Refresh
+Player --> UC_Profile
+Player --> UC_SignOut
+
+Player --> UC_Play
+UC_Play ..> UC_Create : <<include>>
+UC_Play ..> UC_Join : <<include>>
+UC_Play ..> UC_Start : <<include>>
+UC_Play ..> UC_Answer : <<include>>
+UC_Play ..> UC_Results : <<include>>
+
+Admin --> UC_SignIn
+Admin --> UC_Refresh
+Admin --> UC_SignOut
+Admin --> UC_Categories
+Admin --> UC_Questions
+Admin --> UC_Options
+
+Cognito <-- UC_SignUp
+Cognito <-- UC_SignIn
+Cognito <-- UC_Refresh
+
+@enduml

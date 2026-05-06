@@ -1,0 +1,54 @@
+@startuml
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+
+actor "Player" as Player
+participant "LP-MOB" as Mobile
+participant "SocketService" as SocketService
+participant "GameGateway" as Gateway
+participant "MatchService" as MatchService
+participant "QuestionService" as QuestionService
+participant "CacheService (Redis)" as Cache
+participant "GameService" as GameService
+participant "EventEmitter" as Events
+participant "GameTimeoutQueue (BullMQ)" as Queue
+participant "GameTimeoutProcessor" as Processor
+
+== Create or Join Match ==
+Player -> Mobile: Select level / room
+Mobile -> SocketService: createGame(level, mode)
+SocketService -> Gateway: emit createGame
+Gateway -> MatchService: createMatch(level, mode, owner)
+MatchService -> QuestionService: getRandomQuestions(level)
+QuestionService --> MatchService: questions
+MatchService -> Cache: set(match)
+Gateway -> Gateway: join socket room
+Gateway -> Mobile: gameCreated(roomId, level, mode)
+Gateway -> Mobile: playersUpdated(players)
+
+... or ...
+Player -> Mobile: Enter roomId
+Mobile -> SocketService: joinGame(roomId)
+SocketService -> Gateway: emit joinGame
+Gateway -> MatchService: joinMatch(roomId, user)
+MatchService -> Cache: set(match)
+Gateway -> Mobile: gameJoined(roomId, level, mode)
+Gateway -> Mobile: playersUpdated(players)
+
+== Start Match and Question Loop ==
+Player -> Mobile: Tap Start
+Mobile -> SocketService: startGame()
+SocketService -> Gateway: emit startGame
+Gateway -> GameService: start(roomId, userId)
+GameService -> MatchService: startMatch(roomId, userId)
+MatchService -> Cache: set(match)
+GameService -> Events: emit game.starting(roomId, delay)
+Events -> Queue: scheduleQuestionStart(delay)
+Queue -> Processor: start-question job
+Processor -> GameService: startQuestion(roomId)
+GameService -> MatchService: nextQuestion(roomId)
+MatchService -> Cache: set(match)
+GameService -> Events: emit game.next-question
+Gateway -> Mobile: newQuestion(question, timeLimit)
+
+@enduml

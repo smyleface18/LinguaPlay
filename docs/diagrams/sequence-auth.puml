@@ -1,0 +1,25 @@
+@startuml
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+actor "Player" as Player
+participant "LP-MOB" as Mobile
+participant "AuthController" as AuthController
+participant "AuthService" as AuthService
+participant "AWS Cognito" as Cognito
+
+Player -> Mobile: Enter email + password
+Mobile -> AuthController: POST /auth/signIn
+activate AuthController
+AuthController -> AuthService: signIn(dto)
+activate AuthService
+AuthService -> Cognito: InitiateAuth(USER_PASSWORD_AUTH)
+Cognito --> AuthService: Access/Id/Refresh tokens
+AuthService --> AuthController: Tokens
+AuthController --> Mobile: Tokens
+deactivate AuthService
+deactivate AuthController
+Mobile --> Player: Session established
+
+@enduml

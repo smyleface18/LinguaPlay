@@ -1,0 +1,136 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "Database Entities (TypeORM)" {
+  class CoreEntity {
+    +id: uuid
+    +active: boolean
+    +createdAt: Date
+    +updatedAt: Date
+  }
+
+  class User {
+    +username: string
+    +email: string
+    +score: number
+    +userRole: UserRoles
+    +level: Level
+    +avatar: S3Object
+  }
+
+  class Game {
+    +difficulty: Level
+  }
+
+  class GameSession {
+    +userId: uuid
+    +gameId: uuid
+    +score: number
+    +position: number
+  }
+
+  class CategoryQuestion {
+    +level: Level
+    +descriptionCategory: string
+    +type: TypeQuestionCategory
+  }
+
+  class Question {
+    +content: ContentObject
+    +moreInfo: string
+    +categoryId: uuid
+    +timeLimit: number
+  }
+
+  class QuestionOption {
+    +content: ContentObject
+    +isCorrect: boolean
+    +questionId: uuid
+  }
+
+  class PlayerAnswer {
+    +gameSessionId: uuid
+    +questionId: uuid
+    +selectedOptionId: uuid
+    +isCorrect: boolean
+    +timeTaken: number
+  }
+
+  class ContentObject {
+    +type: ContentType
+    +value: string
+    +meta: S3Object
+  }
+
+  class S3Object {
+    +key: string
+    +type: string
+    +displayName: string
+    +url: string
+    +bucketName: string
+  }
+
+  enum Level
+  enum ContentType
+  enum TypeQuestionCategory
+  enum UserRoles
+}
+
+package "Game Domain (in-memory/cache)" {
+  class Match {
+    -roomId: string
+    -status: MatchStatus
+    -currentQuestionIndex: number
+    -players: Map<string, PlayerInfo>
+    -difficulty: Level
+    -mode: ModeMatch
+  }
+
+  class PlayerInfo {
+    +userId: string
+    +username: string
+    +level: Level
+    +matchScore: number
+    +totalScore: number
+    +isConnected: boolean
+    +isOwner: boolean
+    +avatar: string
+  }
+
+  enum MatchStatus
+  enum ModeMatch
+}
+
+CoreEntity <|-- User
+CoreEntity <|-- Game
+CoreEntity <|-- GameSession
+CoreEntity <|-- CategoryQuestion
+CoreEntity <|-- Question
+CoreEntity <|-- QuestionOption
+CoreEntity <|-- PlayerAnswer
+
+User "1" -- "0..*" GameSession : sessions
+Game "1" -- "0..*" GameSession : sessions
+Game "*" -- "*" Question : questions
+CategoryQuestion "1" -- "0..*" Question : questions
+Question "1" -- "0..*" QuestionOption : options
+GameSession "1" -- "0..*" PlayerAnswer : answers
+Question "1" -- "0..*" PlayerAnswer
+QuestionOption "1" -- "0..*" PlayerAnswer
+
+Question --> ContentObject
+QuestionOption --> ContentObject
+ContentObject --> S3Object : meta
+User --> S3Object : avatar
+
+Match "1" o-- "*" PlayerInfo : players
+Match --> Level
+Match --> ModeMatch
+Match --> MatchStatus
+
+User --> Level
+CategoryQuestion --> Level
+CategoryQuestion --> TypeQuestionCategory
+
+@enduml

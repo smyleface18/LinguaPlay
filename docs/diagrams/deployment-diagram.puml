@@ -1,0 +1,28 @@
+@startuml
+skinparam nodeStyle rectangle
+
+node "Mobile Device" as Device {
+  artifact "LP-MOB App" as MobileApp
+}
+
+node "API Server" as ApiServer {
+  artifact "LP-API (NestJS)" as Api
+}
+
+node "Redis Server" as RedisNode {
+  artifact "Redis" as Redis
+}
+
+node "Database Server" as DbNode {
+  artifact "SQL Database" as DB
+}
+
+cloud "AWS Cognito" as Cognito
+
+MobileApp --> Api : HTTPS REST
+MobileApp --> Api : Socket.io /game
+Api --> Redis : cache + match state
+Api --> DB : TypeORM
+Api --> Cognito : Auth
+
+@enduml

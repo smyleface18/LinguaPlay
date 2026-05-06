@@ -1,0 +1,41 @@
+@startuml
+skinparam componentStyle rectangle
+
+package "LP-MOB (React Native)" {
+  [Auth Screens]
+  [Game Screens]
+  [Category/Question Screens]
+  [SocketService]
+}
+
+package "LP-API (NestJS)" {
+  [AuthModule]
+  [GameModule]
+  [QuestionModule]
+  [CategoryQuestionModule]
+  [QuestionOptionsModule]
+  [WS Gateway]
+}
+
+cloud "AWS Cognito" as Cognito
+queue "BullMQ" as Queue
+node "Redis" as Redis
+database "SQL Database" as DB
+
+[Auth Screens] --> [AuthModule] : REST /auth
+[Category/Question Screens] --> [QuestionModule] : REST /question
+[Category/Question Screens] --> [CategoryQuestionModule] : REST /category-question
+[Category/Question Screens] --> [QuestionOptionsModule] : REST /question-options
+
+[Game Screens] --> [SocketService]
+[SocketService] --> [WS Gateway] : Socket.io
+
+[AuthModule] --> Cognito
+[GameModule] --> Redis : cache + match state
+[GameModule] --> Queue : question timeouts
+[QuestionModule] --> DB
+[CategoryQuestionModule] --> DB
+[QuestionOptionsModule] --> DB
+[AuthModule] --> DB : users
+
+@enduml
