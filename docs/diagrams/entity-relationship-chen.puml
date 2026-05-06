@@ -1,0 +1,135 @@
+@startuml
+left to right direction
+skinparam linetype ortho
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+' Chen notation (PlantUML-safe):
+' - Entities: class with E (rectangle)
+' - Relationships: class with D (diamond)
+' - Attributes: class with O (oval)
+
+hide members
+hide methods
+
+class "USER" as USER << (E,#E0E0E0) >>
+class "GAME" as GAME << (E,#E0E0E0) >>
+class "GAME_SESSION" as GAME_SESSION << (E,#E0E0E0) >>
+class "CATEGORY_QUESTION" as CATEGORY_QUESTION << (E,#E0E0E0) >>
+class "QUESTION" as QUESTION << (E,#E0E0E0) >>
+class "QUESTION_OPTION" as QUESTION_OPTION << (E,#E0E0E0) >>
+class "PLAYER_ANSWER" as PLAYER_ANSWER << (E,#E0E0E0) >>
+
+' Attributes
+class "id" as USER_id << (O,#FFFFFF) >>
+class "username" as USER_username << (O,#FFFFFF) >>
+class "email" as USER_email << (O,#FFFFFF) >>
+class "score" as USER_score << (O,#FFFFFF) >>
+class "userRole" as USER_userRole << (O,#FFFFFF) >>
+class "level" as USER_level << (O,#FFFFFF) >>
+class "avatar" as USER_avatar << (O,#FFFFFF) >>
+
+class "id" as GAME_id << (O,#FFFFFF) >>
+class "difficulty" as GAME_difficulty << (O,#FFFFFF) >>
+
+class "id" as GS_id << (O,#FFFFFF) >>
+class "userId" as GS_userId << (O,#FFFFFF) >>
+class "gameId" as GS_gameId << (O,#FFFFFF) >>
+class "score" as GS_score << (O,#FFFFFF) >>
+class "position" as GS_position << (O,#FFFFFF) >>
+
+class "id" as CQ_id << (O,#FFFFFF) >>
+class "level" as CQ_level << (O,#FFFFFF) >>
+class "descriptionCategory" as CQ_desc << (O,#FFFFFF) >>
+class "type" as CQ_type << (O,#FFFFFF) >>
+
+class "id" as Q_id << (O,#FFFFFF) >>
+class "content" as Q_content << (O,#FFFFFF) >>
+class "moreInfo" as Q_moreInfo << (O,#FFFFFF) >>
+class "categoryId" as Q_categoryId << (O,#FFFFFF) >>
+class "timeLimit" as Q_timeLimit << (O,#FFFFFF) >>
+
+class "id" as QO_id << (O,#FFFFFF) >>
+class "content" as QO_content << (O,#FFFFFF) >>
+class "isCorrect" as QO_isCorrect << (O,#FFFFFF) >>
+class "questionId" as QO_questionId << (O,#FFFFFF) >>
+
+class "id" as PA_id << (O,#FFFFFF) >>
+class "gameSessionId" as PA_gameSessionId << (O,#FFFFFF) >>
+class "questionId" as PA_questionId << (O,#FFFFFF) >>
+class "selectedOptionId" as PA_selectedOptionId << (O,#FFFFFF) >>
+class "isCorrect" as PA_isCorrect << (O,#FFFFFF) >>
+class "timeTaken" as PA_timeTaken << (O,#FFFFFF) >>
+
+' Relationships (diamonds)
+class "HAS_SESSION" as R_USER_SESSION << (D,#F2C94C) >>
+class "HAS_SESSION" as R_GAME_SESSION << (D,#F2C94C) >>
+
+USER -- R_USER_SESSION
+GAME -- R_GAME_SESSION
+R_USER_SESSION -- GAME_SESSION
+R_GAME_SESSION -- GAME_SESSION
+
+class "GROUPS" as R_CATEGORY_QUESTION << (D,#F2C94C) >>
+CATEGORY_QUESTION -- R_CATEGORY_QUESTION
+R_CATEGORY_QUESTION -- QUESTION
+
+class "HAS_OPTION" as R_QUESTION_OPTION << (D,#F2C94C) >>
+QUESTION -- R_QUESTION_OPTION
+R_QUESTION_OPTION -- QUESTION_OPTION
+
+class "RECORDED_IN" as R_SESSION_ANSWER << (D,#F2C94C) >>
+GAME_SESSION -- R_SESSION_ANSWER
+R_SESSION_ANSWER -- PLAYER_ANSWER
+
+class "REFERENCES" as R_ANSWER_QUESTION << (D,#F2C94C) >>
+QUESTION -- R_ANSWER_QUESTION
+R_ANSWER_QUESTION -- PLAYER_ANSWER
+
+class "SELECTS" as R_ANSWER_OPTION << (D,#F2C94C) >>
+QUESTION_OPTION -- R_ANSWER_OPTION
+R_ANSWER_OPTION -- PLAYER_ANSWER
+
+' Link attributes to entities
+USER -- USER_id
+USER -- USER_username
+USER -- USER_email
+USER -- USER_score
+USER -- USER_userRole
+USER -- USER_level
+USER -- USER_avatar
+
+GAME -- GAME_id
+GAME -- GAME_difficulty
+
+GAME_SESSION -- GS_id
+GAME_SESSION -- GS_userId
+GAME_SESSION -- GS_gameId
+GAME_SESSION -- GS_score
+GAME_SESSION -- GS_position
+
+CATEGORY_QUESTION -- CQ_id
+CATEGORY_QUESTION -- CQ_level
+CATEGORY_QUESTION -- CQ_desc
+CATEGORY_QUESTION -- CQ_type
+
+QUESTION -- Q_id
+QUESTION -- Q_content
+QUESTION -- Q_moreInfo
+QUESTION -- Q_categoryId
+QUESTION -- Q_timeLimit
+
+QUESTION_OPTION -- QO_id
+QUESTION_OPTION -- QO_content
+QUESTION_OPTION -- QO_isCorrect
+QUESTION_OPTION -- QO_questionId
+
+PLAYER_ANSWER -- PA_id
+PLAYER_ANSWER -- PA_gameSessionId
+PLAYER_ANSWER -- PA_questionId
+PLAYER_ANSWER -- PA_selectedOptionId
+PLAYER_ANSWER -- PA_isCorrect
+PLAYER_ANSWER -- PA_timeTaken
+
+@enduml

@@ -1,0 +1,107 @@
+@startuml
+left to right direction
+skinparam linetype ortho
+skinparam roundcorner 6
+skinparam entityAttributeIconSize 0
+
+entity "USER" as USER {
+  *id : uuid
+  --
+  active : boolean
+  createdAt : datetime
+  updatedAt : datetime
+  username : string
+  email : string
+  score : int
+  userRole : string
+  level : string
+  avatar : json
+}
+
+entity "GAME" as GAME {
+  *id : uuid
+  --
+  active : boolean
+  createdAt : datetime
+  updatedAt : datetime
+  difficulty : string
+}
+
+entity "GAME_SESSION" as GAME_SESSION {
+  *id : uuid
+  --
+  active : boolean
+  createdAt : datetime
+  updatedAt : datetime
+  userId : uuid
+  gameId : uuid
+  score : int
+  position : int
+}
+
+entity "CATEGORY_QUESTION" as CATEGORY_QUESTION {
+  *id : uuid
+  --
+  active : boolean
+  createdAt : datetime
+  updatedAt : datetime
+  level : string
+  descriptionCategory : string
+  type : string
+}
+
+entity "QUESTION" as QUESTION {
+  *id : uuid
+  --
+  active : boolean
+  createdAt : datetime
+  updatedAt : datetime
+  content : json
+  moreInfo : text
+  categoryId : uuid
+  timeLimit : int
+}
+
+entity "QUESTION_OPTION" as QUESTION_OPTION {
+  *id : uuid
+  --
+  active : boolean
+  createdAt : datetime
+  updatedAt : datetime
+  content : json
+  isCorrect : boolean
+  questionId : uuid
+}
+
+entity "PLAYER_ANSWER" as PLAYER_ANSWER {
+  *id : uuid
+  --
+  active : boolean
+  createdAt : datetime
+  updatedAt : datetime
+  gameSessionId : uuid
+  questionId : uuid
+  selectedOptionId : uuid
+  isCorrect : boolean
+  timeTaken : int
+}
+
+entity "GAME_QUESTION" as GAME_QUESTION {
+  *gameId : uuid
+  *questionId : uuid
+}
+
+USER ||--o{ GAME_SESSION : has
+GAME ||--o{ GAME_SESSION : has
+
+CATEGORY_QUESTION ||--o{ QUESTION : groups
+QUESTION ||--o{ QUESTION_OPTION : has
+
+GAME_SESSION ||--o{ PLAYER_ANSWER : records
+QUESTION ||--o{ PLAYER_ANSWER : references
+QUESTION_OPTION ||--o{ PLAYER_ANSWER : selected
+
+GAME ||--o{ GAME_QUESTION : links
+QUESTION ||--o{ GAME_QUESTION : links
+
+@enduml

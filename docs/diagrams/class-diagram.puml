@@ -1,8 +1,13 @@
 @startuml
+left to right direction
 skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam nodesep 40
+skinparam ranksep 30
 
 package "Database Entities (TypeORM)" {
+  together {
   class CoreEntity {
     +id: uuid
     +active: boolean
@@ -17,6 +22,7 @@ package "Database Entities (TypeORM)" {
     +userRole: UserRoles
     +level: Level
     +avatar: S3Object
+    +role: UserRoles
   }
 
   class Game {
@@ -56,7 +62,9 @@ package "Database Entities (TypeORM)" {
     +isCorrect: boolean
     +timeTaken: number
   }
+  }
 
+  together {
   class ContentObject {
     +type: ContentType
     +value: string
@@ -70,11 +78,37 @@ package "Database Entities (TypeORM)" {
     +url: string
     +bucketName: string
   }
+  }
 
-  enum Level
-  enum ContentType
-  enum TypeQuestionCategory
-  enum UserRoles
+  enum Level {
+    A1
+    A2
+    B1
+    B2
+    C1
+    C2
+  }
+
+  enum ContentType {
+    TEXT
+    IMAGE
+    AUDIO
+    VIDEO
+  }
+
+  enum TypeQuestionCategory {
+    LISTENING
+    GRAMMAR
+    READING
+    VOCABULARY
+    WRITING
+    SPEAKING
+  }
+
+  enum UserRoles {
+    PLAYER
+    ADMIN
+  }
 }
 
 package "Game Domain (in-memory/cache)" {
@@ -85,6 +119,33 @@ package "Game Domain (in-memory/cache)" {
     -players: Map<string, PlayerInfo>
     -difficulty: Level
     -mode: ModeMatch
+    +getRoomId(): string
+    +getDifficulty(): Level
+    +getMode(): ModeMatch
+    +addPlayer(userId: string, username: string, level: Level, totalScore: number, isOwner: boolean, avatar: string): void
+    +disconnectPlayer(userId: string): void
+    +reconnectPlayer(userId: string): void
+    +isUserConnected(userId: string): boolean
+    +getPlayersCount(): number
+    +getPlayers(): string[]
+    +getPlayersWithInfo(): PlayerInfo[]
+    +sendNextQuestion(): Question
+    +addScore(userId: string, points: number): void
+    +finishCurrentQuestion(): void
+    +hasNextQuestion(): boolean
+    +getResults(): PlayerInfo[]
+    +getStatus(): MatchStatus
+    +getQuestions(): Question[]
+    +getQuestionById(questionId: string): Question
+    +getOwner(): User
+    +start(): void
+    +getcurrentQuestionIndex(): number
+    +calculateMatchTimeout(): number
+    +getNextQuestion(): Question
+    +toPersistence(): any
+    +isRoomEmpty(): boolean
+    +setStatus(status: MatchStatus): void
+    {static} +fromPersistence(data: unknown): Match
   }
 
   class PlayerInfo {
@@ -98,9 +159,29 @@ package "Game Domain (in-memory/cache)" {
     +avatar: string
   }
 
-  enum MatchStatus
-  enum ModeMatch
+  enum MatchStatus {
+    WAITING
+    QUESTION_ACTIVE
+    PROCESSING
+    BETWEEN_QUESTIONS
+    FINISHED
+    STARTING
+    PREPARING
+  }
+
+  enum ModeMatch {
+    SINGLEPLAYER
+    MULTIPLAYER
+  }
 }
+
+User -[hidden]- Game
+Game -[hidden]- GameSession
+CategoryQuestion -[hidden]- Question
+Question -[hidden]- QuestionOption
+GameSession -[hidden]- PlayerAnswer
+Question -[hidden]- ContentObject
+ContentObject -[hidden]- S3Object
 
 CoreEntity <|-- User
 CoreEntity <|-- Game
@@ -123,6 +204,7 @@ Question --> ContentObject
 QuestionOption --> ContentObject
 ContentObject --> S3Object : meta
 User --> S3Object : avatar
+User --> UserRoles
 
 Match "1" o-- "*" PlayerInfo : players
 Match --> Level
@@ -132,5 +214,6 @@ Match --> MatchStatus
 User --> Level
 CategoryQuestion --> Level
 CategoryQuestion --> TypeQuestionCategory
+ContentObject --> ContentType
 
 @enduml
