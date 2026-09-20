@@ -1,8 +1,8 @@
 @startuml
 skinparam nodeStyle rectangle
 
-node "Mobile Device" as Device {
-  artifact "LP-MOB App" as MobileApp
+node "Mobile Device/ Browser" as Device {
+  artifact "LP-MOB App / web" as Frontend
 }
 
 node "API Server" as ApiServer {
@@ -19,8 +19,8 @@ node "Database Server" as DbNode {
 
 cloud "AWS Cognito" as Cognito
 
-MobileApp --> Api : HTTPS REST
-MobileApp --> Api : Socket.io /game
+Frontend --> Api : HTTPS REST
+Frontend --> Api : Socket.io /game
 Api --> Redis : cache + match state
 Api --> DB : TypeORM
 Api --> Cognito : Auth

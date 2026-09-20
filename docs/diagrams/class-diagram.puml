@@ -22,7 +22,6 @@ package "Database Entities (TypeORM)" {
     +userRole: UserRoles
     +level: Level
     +avatar: S3Object
-    +role: UserRoles
   }
 
   class Game {
@@ -122,7 +121,7 @@ package "Game Domain (in-memory/cache)" {
     +getRoomId(): string
     +getDifficulty(): Level
     +getMode(): ModeMatch
-    +addPlayer(userId: string, username: string, level: Level, totalScore: number, isOwner: boolean, avatar: string): void
+    +addPlayer(userId: string, username: string, level: Level, totalScore: number, avatar: string): void
     +disconnectPlayer(userId: string): void
     +reconnectPlayer(userId: string): void
     +isUserConnected(userId: string): boolean

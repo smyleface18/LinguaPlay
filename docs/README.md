@@ -4,14 +4,6 @@ This folder contains the core diagrams used in the presentation. They focus on L
 
 ## Diagram list
 
-- use-case.puml: Use case diagram (actors and functional requirements).
-- class-diagram.puml: Class diagram (entities + key domain classes).
-- sequence-auth.puml: Sequence diagram for sign-in with AWS Cognito.
-- sequence-game-flow.puml: Sequence diagram for real-time game flow (create/join/start/questions).
-- component-diagram.puml: Component diagram (mobile, API, external services, data stores).
-- deployment-diagram.puml: Deployment diagram (runtime nodes and connections).
-- relational-model.puml: Relational model (ER diagram in PlantUML).
-
 ## How to render
 
 Option A: VS Code extension
@@ -32,5 +24,7 @@ Option C: PlantUML (ER diagram)
 
 Notes:
 
-- The diagrams are based on the current codebase (LP-API + LP-MOB).
-- If you rename modules or add new ones, update the diagrams accordingly.
+## Documentación del equipo
+
+- [Documentación técnica](technical-documentation.md): arquitectura, tecnologías, datos, API, instalación, pruebas, despliegue y mantenimiento.
+- [Documentación interna](internal-documentation.md): onboarding, flujo de desarrollo, Git, reglas de negocio, flujos funcionales, interfaces y troubleshooting.

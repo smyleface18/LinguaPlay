@@ -33,8 +33,8 @@ entity "GAME_SESSION" as GAME_SESSION {
   active : boolean
   createdAt : datetime
   updatedAt : datetime
-  userId : uuid
-  gameId : uuid
+  user_id : uuid
+  game_id : uuid
   score : int
   position : int
 }
@@ -58,7 +58,7 @@ entity "QUESTION" as QUESTION {
   updatedAt : datetime
   content : json
   moreInfo : text
-  categoryId : uuid
+  category_id : uuid
   timeLimit : int
 }
 
@@ -70,7 +70,7 @@ entity "QUESTION_OPTION" as QUESTION_OPTION {
   updatedAt : datetime
   content : json
   isCorrect : boolean
-  questionId : uuid
+  question_id : uuid
 }
 
 entity "PLAYER_ANSWER" as PLAYER_ANSWER {
@@ -79,29 +79,29 @@ entity "PLAYER_ANSWER" as PLAYER_ANSWER {
   active : boolean
   createdAt : datetime
   updatedAt : datetime
-  gameSessionId : uuid
-  questionId : uuid
-  selectedOptionId : uuid
+  game_session_id : uuid
+  question_id : uuid
+  selected_option_id : uuid
   isCorrect : boolean
   timeTaken : int
 }
 
-entity "GAME_QUESTION" as GAME_QUESTION {
+entity "GAME_QUESTIONS_QUESTION" as GAME_QUESTIONS_QUESTION {
   *gameId : uuid
   *questionId : uuid
 }
 
-USER ||--o{ GAME_SESSION : has
-GAME ||--o{ GAME_SESSION : has
+USER ||--o{ GAME_SESSION 
+GAME ||--o{ GAME_SESSION 
 
-CATEGORY_QUESTION ||--o{ QUESTION : groups
-QUESTION ||--o{ QUESTION_OPTION : has
+CATEGORY_QUESTION ||--o{ QUESTION 
+QUESTION ||--o{ QUESTION_OPTION  
 
-GAME_SESSION ||--o{ PLAYER_ANSWER : records
-QUESTION ||--o{ PLAYER_ANSWER : references
-QUESTION_OPTION ||--o{ PLAYER_ANSWER : selected
+GAME_SESSION ||--o{ PLAYER_ANSWER  
+QUESTION ||--o{ PLAYER_ANSWER 
+QUESTION_OPTION ||--o{ PLAYER_ANSWER 
 
-GAME ||--o{ GAME_QUESTION : links
-QUESTION ||--o{ GAME_QUESTION : links
+GAME ||--o{ GAME_QUESTIONS_QUESTION 
+QUESTION ||--o{ GAME_QUESTIONS_QUESTION 
 
 @enduml

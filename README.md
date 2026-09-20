@@ -1,4 +1,3 @@
-
 # LinguaPlay
 
 LinguaPlay es un proyecto modular que utiliza **Git Submodules** para gestionar diferentes componentes del sistema como repositorios independientes.
@@ -21,13 +20,16 @@ LinguaPlay
 
 Cada uno de estos directorios es **un repositorio independiente gestionado como submódulo**.
 
+## Documentación
+
+- Documentación técnica: `docs/technical-documentation.md`
+- Documentación interna para el equipo: `docs/internal-documentation.md`
+
 ---
 
 # Clonar el Proyecto
 
 Para clonar el proyecto correctamente junto con todos sus submódulos:
-
-
 
 Ejemplo:
 
@@ -37,8 +39,8 @@ git clone --recurse-submodules https://github.com/smyleface18/LinguaPlay.git
 
 Este comando descargará:
 
-* el repositorio principal
-* todos los submódulos configurados
+- el repositorio principal
+- todos los submódulos configurados
 
 ---
 
@@ -213,6 +215,6 @@ git push
 
 # Notas Importantes
 
-* Los submódulos **no se actualizan automáticamente**.
-* Siempre debes **hacer commit del submódulo en el repositorio principal** después de actualizarlo.
-* Cada submódulo tiene **su propio historial de Git y control de versiones**.
+- Los submódulos **no se actualizan automáticamente**.
+- Siempre debes **hacer commit del submódulo en el repositorio principal** después de actualizarlo.
+- Cada submódulo tiene **su propio historial de Git y control de versiones**.

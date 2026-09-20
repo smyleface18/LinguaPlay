@@ -1,0 +1,190 @@
+@startuml
+
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+title LinguaPlay - Arquitectura de componentes
+
+' =========================================================
+' LP-MOB
+' =========================================================
+
+package "LP-MOB - React Native" {
+
+    package "src" {
+
+        package "app" as MobApp {
+            [App / Navigation]
+        }
+
+        package "features" {
+
+            package "auth" as MobAuth {
+                [Auth Feature]
+            }
+
+            package "category" as MobCategory {
+                [Category Feature]
+            }
+
+            package "game" as MobGame {
+                [Game Feature]
+                [SocketService]
+            }
+
+            package "question" as MobQuestion {
+                [Question Feature]
+            }
+        }
+
+        package "shared" as MobShared {
+            [Shared Components]
+        }
+
+        package "store" as MobStore {
+            [Global Store]
+        }
+    }
+}
+
+
+' =========================================================
+' LP-API
+' =========================================================
+
+package "LP-API - NestJS" {
+
+    package "src" {
+
+        package "common" as ApiCommon {
+            [Common]
+        }
+
+        package "db" as ApiDB {
+            [Database Configuration]
+        }
+
+        package "entities" as ApiEntities {
+            [Entities]
+        }
+
+        package "migrations" as ApiMigrations {
+            [Migrations]
+        }
+
+        package "modules" {
+
+            package "auth" as ApiAuth {
+                [AuthModule]
+                [AuthController]
+                [AuthService]
+            }
+
+            package "category-question" as ApiCategoryQuestion {
+                [CategoryQuestionModule]
+                [CategoryQuestionController]
+                [CategoryQuestionService]
+            }
+
+            package "game" as ApiGame {
+                [GameModule]
+                [GameGateway]
+                [GameService]
+            }
+
+            package "question" as ApiQuestion {
+                [QuestionModule]
+                [QuestionController]
+                [QuestionService]
+            }
+
+            package "question-options" as ApiQuestionOptions {
+                [QuestionOptionsModule]
+                [QuestionOptionsController]
+                [QuestionOptionsService]
+            }
+        }
+    }
+}
+
+
+' =========================================================
+' INFRAESTRUCTURA
+' =========================================================
+
+database "PostgreSQL" as PostgreSQL
+node "Redis" as Redis
+queue "BullMQ" as BullMQ
+cloud "AWS Cognito" as Cognito
+
+
+' =========================================================
+' COMUNICACIÓN MOBILE -> API
+' =========================================================
+
+[Auth Feature] --> [AuthController] : REST /auth
+
+[Category Feature] --> [CategoryQuestionController] : REST
+[Question Feature] --> [QuestionController] : REST
+[Question Feature] --> [QuestionOptionsController] : REST
+
+[Game Feature] --> [SocketService] : Socket.io
+[SocketService] --> [GameGateway] : WebSocket
+
+
+' =========================================================
+' GAME
+' =========================================================
+
+[GameGateway] --> [GameService] : delegates game logic
+
+[GameService] --> Redis : match state / cache
+[GameService] --> BullMQ : question timeouts
+
+
+' =========================================================
+' AUTH
+' =========================================================
+
+[AuthService] --> Cognito : authentication
+[AuthService] --> PostgreSQL : users
+
+
+' =========================================================
+' DATABASE
+' =========================================================
+
+[QuestionService] --> PostgreSQL
+[CategoryQuestionService] --> PostgreSQL
+[QuestionOptionsService] --> PostgreSQL
+
+[AuthService] --> [Entities]
+[QuestionService] --> [Entities]
+[CategoryQuestionService] --> [Entities]
+[QuestionOptionsService] --> [Entities]
+
+[Database Configuration] --> PostgreSQL
+[Database Configuration] --> [Entities]
+[Database Configuration] --> [Migrations]
+
+
+' =========================================================
+' SHARED / GLOBAL
+' =========================================================
+
+[App / Navigation] --> [Auth Feature]
+[App / Navigation] --> [Category Feature]
+[App / Navigation] --> [Game Feature]
+[App / Navigation] --> [Question Feature]
+
+[Auth Feature] --> [Global Store]
+[Category Feature] --> [Global Store]
+[Game Feature] --> [Global Store]
+[Question Feature] --> [Global Store]
+
+[Auth Feature] --> [Shared Components]
+[Category Feature] --> [Shared Components]
+[Game Feature] --> [Shared Components]
+[Question Feature] --> [Shared Components]
+
+@enduml

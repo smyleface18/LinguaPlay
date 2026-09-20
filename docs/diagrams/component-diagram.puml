@@ -1,7 +1,7 @@
 @startuml
 skinparam componentStyle rectangle
 
-package "LP-MOB (React Native)" {
+package "LP-MOB (React Native) / LP-WEB (React)" {
   [Auth Screens]
   [Game Screens]
   [Category/Question Screens]
@@ -29,6 +29,8 @@ database "SQL Database" as DB
 
 [Game Screens] --> [SocketService]
 [SocketService] --> [WS Gateway] : Socket.io
+
+[WS Gateway] --> [GameModule] : uses GameService
 
 [AuthModule] --> Cognito
 [GameModule] --> Redis : cache + match state

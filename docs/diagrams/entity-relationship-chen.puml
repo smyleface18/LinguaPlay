@@ -62,6 +62,11 @@ class "selectedOptionId" as PA_selectedOptionId << (O,#FFFFFF) >>
 class "isCorrect" as PA_isCorrect << (O,#FFFFFF) >>
 class "timeTaken" as PA_timeTaken << (O,#FFFFFF) >>
 
+' Many-to-many relation represented directly in Chen notation.
+class "HAS_QUESTION" as R_GAME_QUESTION << (D,#F2C94C) >>
+GAME -- R_GAME_QUESTION
+R_GAME_QUESTION -- QUESTION
+
 ' Relationships (diamonds)
 class "HAS_SESSION" as R_USER_SESSION << (D,#F2C94C) >>
 class "HAS_SESSION" as R_GAME_SESSION << (D,#F2C94C) >>
