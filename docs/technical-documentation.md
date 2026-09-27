@@ -133,7 +133,7 @@ Varios jugadores escriben una historieta en inglés, una viñeta por turno. Esta
 
 ```text
 LOBBY → PLAYING → PROCESSING → REVIEW → FINISHED
-cualquier estado → ABANDONED (no quedan jugadores conectados)
+LOBBY/PLAYING → ABANDONED (nadie conectado durante 60 s, o todos salieron)
 ```
 
 1. El anfitrión emite `createStoryGame` y configura con `updateConfig`; los demás se unen con `joinStoryGame`. El anfitrión puede expulsar con `kickPlayer`.
@@ -141,7 +141,9 @@ cualquier estado → ABANDONED (no quedan jugadores conectados)
 3. Los personajes se crean durante los turnos, junto con cada viñeta.
 4. Turnos, revisión de inglés con IA, audio y review final se agregan en fases posteriores.
 
-Si el lobby queda sin nadie conectado, una tarea diferida de BullMQ (patrón `dueAt + seq`, como la trivia) lo pasa a ABANDONED a los 60 s, salvo que alguien vuelva antes.
+Si una partida en LOBBY o PLAYING queda sin nadie conectado, una tarea diferida de BullMQ (patrón `dueAt + seq`, como la trivia) la pasa a ABANDONED a los 60 s, salvo que alguien vuelva antes. El margen evita que un redeploy, que desconecta todos los sockets, mate las partidas en curso. PROCESSING y REVIEW nunca se abandonan.
+
+Cada socket de `/story` entra a una sala personal `user:{userId}`, y la partida actual de cada usuario se lee de Redis en cada evento, así el servidor puede avisar o sacar de una sala a un usuario en cualquier instancia.
 
 El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL`. Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
 

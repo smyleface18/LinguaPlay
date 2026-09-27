@@ -272,7 +272,7 @@ Jugador → Socket.IO /story → StoryGameGateway → StoryGameService
 → StoryStateRepository → Redis → eventos de sala → clientes
 ```
 
-`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Los personajes se crean durante los turnos. Las tareas diferidas (abandono del lobby vacío y, desde la Fase 2, el cierre de turnos) van por la cola BullMQ `story-turn-timeout`.
+`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Los personajes se crean durante los turnos. Las tareas diferidas (abandono de partidas vacías y, desde la Fase 2, el cierre de turnos) van por la cola BullMQ `story-turn-timeout`.
 
 ## 8. Pantallas y navegación
 
@@ -324,7 +324,7 @@ Modo Historieta:
 - Un usuario no puede estar en dos partidas de Historieta activas.
 - Si el anfitrión se desconecta o sale, el anfitrión pasa al siguiente jugador conectado en orden de entrada; no se devuelve al reconectarse.
 - Salir en LOBBY quita al jugador; salir después lo marca como retirado sin cambiar el orden de turnos.
-- Si en LOBBY no queda nadie conectado, la partida pasa a ABANDONED a los 60 s salvo que alguien vuelva. Fuera del lobby pasa en el acto.
+- Si en LOBBY o PLAYING no queda nadie conectado, la partida pasa a ABANDONED a los 60 s salvo que alguien vuelva (un redeploy no debe matar partidas). Si todos salieron, pasa en el acto. PROCESSING y REVIEW nunca se abandonan.
 
 Al modificar roles, puntuación, estados, tiempos o acceso, actualizar API, cliente, eventos y pruebas del flujo completo.
 
