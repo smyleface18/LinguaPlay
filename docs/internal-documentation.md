@@ -272,7 +272,7 @@ Jugador → Socket.IO /story → StoryGameGateway → StoryGameService
 → StoryStateRepository → Redis → eventos de sala → clientes
 ```
 
-`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, abre los personajes con `startCharacters` y comienza con `startStory`.
+`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Los personajes se crean durante los turnos. Las tareas diferidas (abandono del lobby vacío y, desde la Fase 2, el cierre de turnos) van por la cola BullMQ `story-turn-timeout`.
 
 ## 8. Pantallas y navegación
 
@@ -318,12 +318,13 @@ Modo Historieta:
 
 - Partidas de 2 a 6 jugadores; el orden de entrada define los turnos.
 - Configuración (solo el anfitrión, solo en LOBBY): `panelsCount` 4–10 (6 por defecto), `turnDurationSec` 60/90/120/180 (90), `level` A1/A2/B1/B2 (A2), `language` solo `en-US`.
-- Solo el anfitrión pasa de LOBBY a CHARACTERS y de CHARACTERS a PLAYING; no se puede pasar a PLAYING si algún jugador no creó su personaje.
-- Un personaje por jugador; puede reemplazarse mientras dure el paso de personajes.
+- Solo el anfitrión pasa de LOBBY a PLAYING (`startStory`), con al menos 2 jugadores conectados y `panelsCount` mayor o igual a la cantidad de jugadores.
+- Solo el anfitrión expulsa jugadores, y solo en LOBBY.
+- Los personajes se crean durante los turnos (ficha `{ name, kind, description }`), son inmutables una vez agregados y hay como máximo 6 por historieta.
 - Un usuario no puede estar en dos partidas de Historieta activas.
 - Si el anfitrión se desconecta o sale, el anfitrión pasa al siguiente jugador conectado en orden de entrada; no se devuelve al reconectarse.
-- Salir en LOBBY/CHARACTERS quita al jugador (y su personaje); salir después lo marca como retirado sin cambiar el orden de turnos.
-- Si no queda ningún jugador conectado, la partida pasa a ABANDONED.
+- Salir en LOBBY quita al jugador; salir después lo marca como retirado sin cambiar el orden de turnos.
+- Si en LOBBY no queda nadie conectado, la partida pasa a ABANDONED a los 60 s salvo que alguien vuelva. Fuera del lobby pasa en el acto.
 
 Al modificar roles, puntuación, estados, tiempos o acceso, actualizar API, cliente, eventos y pruebas del flujo completo.
 

@@ -103,7 +103,8 @@ Los módulos principales registrados en `AppModule` son:
 - `GameModule`: gateway y lógica de partidas.
 - `MatchModule`: creación, unión y estado de partidas.
 - `GameQueueModule`: trabajos temporizados de las partidas.
-- `StoryGameModule`: modo Historieta (namespace `/story`): lobby, personajes y turnos, con estado en Redis.
+- `StoryGameModule`: modo Historieta (namespace `/story`): lobby y turnos, con estado en Redis.
+- `StoryQueueModule`: tareas diferidas del modo Historieta (cola BullMQ `story-turn-timeout`).
 - `WsAuthModule`: validación de tokens en conexiones WebSocket (`authenticateSocket` para `handleConnection`).
 - `CommonModule`: configuración, respuestas, filtros y utilidades compartidas.
 
@@ -131,14 +132,16 @@ Los módulos principales registrados en `AppModule` son:
 Varios jugadores escriben una historieta en inglés, una viñeta por turno. Estados (solo los cambia el servidor):
 
 ```text
-LOBBY → CHARACTERS → PLAYING → PROCESSING → REVIEW → FINISHED
+LOBBY → PLAYING → PROCESSING → REVIEW → FINISHED
 cualquier estado → ABANDONED (no quedan jugadores conectados)
 ```
 
-1. El anfitrión emite `createStoryGame` y configura con `updateConfig`; los demás se unen con `joinStoryGame`.
-2. El anfitrión pasa a personajes con `startCharacters`; cada jugador envía su ficha con `createCharacter`.
-3. El anfitrión inicia con `startStory` (requiere que todos tengan personaje).
+1. El anfitrión emite `createStoryGame` y configura con `updateConfig`; los demás se unen con `joinStoryGame`. El anfitrión puede expulsar con `kickPlayer`.
+2. El anfitrión inicia con `startStory` (al menos 2 jugadores conectados y una viñeta por jugador como mínimo).
+3. Los personajes se crean durante los turnos, junto con cada viñeta.
 4. Turnos, revisión de inglés con IA, audio y review final se agregan en fases posteriores.
+
+Si el lobby queda sin nadie conectado, una tarea diferida de BullMQ (patrón `dueAt + seq`, como la trivia) lo pasa a ABANDONED a los 60 s, salvo que alguien vuelva antes.
 
 El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL`. Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
 
@@ -298,12 +301,10 @@ Mismo mecanismo de autenticación (`handshake.auth.token`). Los payloads se vali
 | `createStoryGame`   | Cliente → servidor  | Crear una partida (el creador es anfitrión)                    |
 | `joinStoryGame`     | Cliente → servidor  | Unirse con `{ gameId }` (solo en LOBBY; reconecta si ya estaba) |
 | `updateConfig`      | Cliente → servidor  | Anfitrión: `panelsCount`, `turnDurationSec`, `level`, `language` |
-| `startCharacters`   | Cliente → servidor  | Anfitrión: LOBBY → CHARACTERS (mínimo 2 jugadores)             |
-| `createCharacter`   | Cliente → servidor  | Guardar la ficha `{ name, type, trait, clothing, detail }`     |
-| `startStory`        | Cliente → servidor  | Anfitrión: CHARACTERS → PLAYING (todos con personaje)          |
+| `kickPlayer`        | Cliente → servidor  | Anfitrión, solo en LOBBY: `{ userId }`; el expulsado recibe `KICKED` |
+| `startStory`        | Cliente → servidor  | Anfitrión: LOBBY → PLAYING                                     |
 | `leaveGame`         | Cliente → servidor  | Salir de la partida                                            |
 | `lobbyUpdated`      | Servidor → sala     | Estado, anfitrión, configuración y jugadores                   |
-| `charactersUpdated` | Servidor → sala     | Fichas de personajes y jugadores que faltan                    |
 | `storyError`        | Servidor → emisor   | Error `{ ok, status, message, code }`                          |
 
 Eventos previstos para fases siguientes: `submitPanelDraft`, `confirmPanel`, `getGameState`, `getReviewManifest`, `turnStarted`, `panelReviewResult`, `panelConfirmed`, `storyProcessing`, `panelMediaReady`, `storyReviewReady`.
