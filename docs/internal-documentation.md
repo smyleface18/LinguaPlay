@@ -276,7 +276,7 @@ Jugador → Socket.IO /story → StoryGameGateway → StoryGameService
 → StoryStateRepository → Redis → eventos de sala → clientes
 ```
 
-`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Cada autor escribe con `submitPanelDraft` y confirma con `confirmPanel`; los personajes se crean durante los turnos. Las tareas diferidas (cierre de turnos por tiempo y abandono de partidas vacías) van por la cola BullMQ `story-turn-timeout`. Las reglas de los turnos están en `domain/story-turns.ts`.
+`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Cada autor escribe con `submitPanelDraft` y confirma con `confirmPanel`; los personajes se crean durante los turnos. Al terminar, `StoryGameService.onProcessingStarted` es el único punto que lleva la partida de PROCESSING a REVIEW (`storyReviewReady` con el manifiesto) y a FINISHED; en la Fase 4b ahí se encola la generación de audio. Las tareas diferidas (cierre de turnos por tiempo y abandono de partidas vacías) van por la cola BullMQ `story-turn-timeout`. Las reglas de los turnos están en `domain/story-turns.ts`.
 
 ## 8. Pantallas y navegación
 

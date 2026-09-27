@@ -141,7 +141,8 @@ LOBBY/PLAYING → ABANDONED (nadie conectado durante 60 s, o ya nadie puede volv
 2. El anfitrión inicia con `startStory` (al menos 2 jugadores conectados y una viñeta por jugador como mínimo).
 3. Por turnos, cada autor escribe su viñeta (`submitPanelDraft`: texto, escenario, personajes existentes y nuevos), recibe la revisión y confirma (`confirmPanel`). Tiene como máximo 2 revisiones y `turnDurationSec` segundos; al vencer, se confirma su último borrador o la viñeta queda sin texto.
 4. Los personajes nuevos entran al elenco recién cuando se confirma la viñeta, y no cambian después.
-5. Después de la última viñeta, la partida pasa a PROCESSING. El audio y el review final se agregan en fases posteriores.
+5. Con `shareDrafts` (configurable, activo por defecto), los demás ven cada borrador revisado del autor, con sus correcciones (`panelDraftReviewed`), y todos ven qué está haciendo el autor (`authorStatus`). Cualquier jugador puede reaccionar con un emoji a una viñeta confirmada (`reactToPanel`).
+6. Después de la última viñeta, la partida pasa a PROCESSING y de ahí a REVIEW: la sala recibe `storyReviewReady` con el manifiesto (viñetas, correcciones, puntajes, reacciones, personajes y ranking por promedio por viñeta), y los jugadores quedan libres para empezar otra partida. Luego pasa a FINISHED y queda 24 h en Redis, consultable con `getReviewManifest`. Por ahora sin audio (Polly llega en la Fase 4b) ni persistencia en Postgres (Fase 4c).
 
 La revisión la hace Amazon Nova 2 Lite (Bedrock, `temperature: 0`) con un presupuesto de 8 s que incluye un reintento. Si falla, el borrador se acepta sin revisión: la IA nunca bloquea la partida. El jugador recibe las correcciones con explicaciones en español, pero no el texto corregido mientras la viñeta está abierta. El puntaje de cada viñeta lo calcula el servidor a partir de la cantidad de errores (`calculatePanelScore`).
 
@@ -153,7 +154,7 @@ Si una partida en LOBBY o PLAYING queda sin nadie conectado, una tarea diferida 
 
 Cada socket de `/story` entra a una sala personal `user:{userId}`, y la partida actual de cada usuario se lee de Redis en cada evento, así el servidor puede avisar o sacar de una sala a un usuario en cualquier instancia.
 
-El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL`. Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
+El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL` (24 h para una partida FINISHED). Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
 
 ## 5. Tecnologías utilizadas
 
@@ -310,21 +311,27 @@ Mismo mecanismo de autenticación (`handshake.auth.token`). Los payloads se vali
 | ------------------- | ------------------- | -------------------------------------------------------------- |
 | `createStoryGame`   | Cliente → servidor  | Crear una partida (el creador es anfitrión)                    |
 | `joinStoryGame`     | Cliente → servidor  | Unirse con `{ gameId }` (solo en LOBBY; reconecta si ya estaba) |
-| `updateConfig`      | Cliente → servidor  | Anfitrión: `panelsCount`, `turnDurationSec`, `level`, `language` |
+| `updateConfig`      | Cliente → servidor  | Anfitrión: `panelsCount`, `turnDurationSec`, `level`, `language`, `shareDrafts` |
 | `kickPlayer`        | Cliente → servidor  | Anfitrión, solo en LOBBY: `{ userId }`; el expulsado recibe `KICKED` |
 | `startStory`        | Cliente → servidor  | Anfitrión: LOBBY → PLAYING y primer turno                      |
 | `submitPanelDraft`  | Cliente → servidor  | Autor: `{ panelOrder, text, scene, characterIds?, newCharacters? }` |
 | `confirmPanel`      | Cliente → servidor  | Autor: `{ panelOrder }`                                        |
-| `getGameState`      | Cliente → servidor  | Estado completo para ese jugador (reconexión)                  |
+| `reactToPanel`      | Cliente → servidor  | `{ panelOrder, emoji \| null, gameId? }` a una viñeta confirmada |
+| `getGameState`      | Cliente → servidor  | Estado completo para ese jugador (reconexión), con `scoreboard` |
+| `getReviewManifest` | Cliente → servidor  | `{ gameId }`: manifiesto del review (REVIEW o FINISHED)        |
 | `leaveGame`         | Cliente → servidor  | Salir de la partida                                            |
 | `lobbyUpdated`      | Servidor → sala     | Estado, anfitrión, configuración y jugadores                   |
 | `turnStarted`       | Servidor → sala     | `panelOrder`, `authorId`, `endsAt`, `storySoFar`, `cast`       |
 | `panelReviewResult` | Servidor → autor    | Correcciones, `attemptsLeft`, `flagged` (sin el texto corregido) |
+| `authorStatus`      | Servidor → sala     | `order`, `status`: `writing`, `reviewing` o `correcting`       |
+| `panelDraftReviewed`| Servidor → sala menos el autor | Borrador revisado y correcciones (sin el texto corregido; nunca uno `flagged`) |
 | `panelConfirmed`    | Servidor → sala     | Viñeta confirmada y personajes nuevos                          |
+| `panelReaction`     | Servidor → sala     | `gameId`, `order`, `userId`, `emoji` (null = quitada)          |
+| `storyReviewReady`  | Servidor → sala     | Manifiesto del review al entrar a REVIEW                       |
 | `gameState`         | Servidor → jugador  | Estado completo al reconectarse                                |
 | `storyError`        | Servidor → emisor   | Error `{ ok, status, message, code }`                          |
 
-Eventos previstos para fases siguientes: `getReviewManifest`, `storyProcessing`, `panelMediaReady`, `storyReviewReady`.
+Eventos previstos para la Fase 4b: `storyProcessing`, `panelMediaReady`. El contrato del manifiesto está en el README del módulo.
 
 ### 8.3 Respuestas y validación
 
