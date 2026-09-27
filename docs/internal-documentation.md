@@ -167,6 +167,8 @@ Después de modificar el core, compilarlo antes de probar sus consumidores.
 
 La lógica de estado está en `apps/LP-API/src/modules/game/match/domain/match.entity.ts`; la coordinación está en `match.service.ts` y `game.gateway.ts`. Un cambio en estados, puntuación, tiempos, reconexión o payloads requiere revisar también `SocketEvents.ts`, `socket.service.ts` y `useGame` en el cliente.
 
+El modo Historieta vive en `apps/LP-API/src/modules/story-game/`: las reglas están en `story-game.service.ts`, el estado en Redis en `story-state.repository.ts` y los números configurables en `story-game.config.ts`. El gateway (`/story`) solo traduce eventos. Ver el `README.md` del módulo.
+
 ## 5. Convenciones y buenas prácticas observadas
 
 - El código se organiza por features y módulos de dominio.
@@ -263,6 +265,15 @@ Jugador → GameScreen → SocketService → Socket.IO /game
 
 `createGame` crea una sala y `joinGame` incorpora un jugador. El propietario inicia con `startGame`. BullMQ coordina trabajos temporizados y los clientes reciben preguntas, resultados y puntuaciones mediante eventos.
 
+### Historieta en tiempo real
+
+```text
+Jugador → Socket.IO /story → StoryGameGateway → StoryGameService
+→ StoryStateRepository → Redis → eventos de sala → clientes
+```
+
+`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, abre los personajes con `startCharacters` y comienza con `startStory`.
+
 ## 8. Pantallas y navegación
 
 `AppNavigator` selecciona:
@@ -302,6 +313,17 @@ Al añadir una pantalla, registrar la ruta en el stack correspondiente, document
 - Una respuesta correcta suma 100 puntos de partida; una incorrecta suma 0.
 - Una revancha solo es válida cuando la partida está finalizada.
 - La validación del cliente no reemplaza la validación del backend.
+
+Modo Historieta:
+
+- Partidas de 2 a 6 jugadores; el orden de entrada define los turnos.
+- Configuración (solo el anfitrión, solo en LOBBY): `panelsCount` 4–10 (6 por defecto), `turnDurationSec` 60/90/120/180 (90), `level` A1/A2/B1/B2 (A2), `language` solo `en-US`.
+- Solo el anfitrión pasa de LOBBY a CHARACTERS y de CHARACTERS a PLAYING; no se puede pasar a PLAYING si algún jugador no creó su personaje.
+- Un personaje por jugador; puede reemplazarse mientras dure el paso de personajes.
+- Un usuario no puede estar en dos partidas de Historieta activas.
+- Si el anfitrión se desconecta o sale, el anfitrión pasa al siguiente jugador conectado en orden de entrada; no se devuelve al reconectarse.
+- Salir en LOBBY/CHARACTERS quita al jugador (y su personaje); salir después lo marca como retirado sin cambiar el orden de turnos.
+- Si no queda ningún jugador conectado, la partida pasa a ABANDONED.
 
 Al modificar roles, puntuación, estados, tiempos o acceso, actualizar API, cliente, eventos y pruebas del flujo completo.
 

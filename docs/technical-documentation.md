@@ -28,7 +28,7 @@ Las funciones principales son:
 - Persistencia de sesiones, respuestas y resultados.
 - Administración de sesiones mediante tokens de AWS Cognito.
 
-La comunicación convencional se realiza mediante HTTP REST. Las partidas utilizan Socket.IO sobre WebSocket, dentro del namespace `/game`.
+La comunicación convencional se realiza mediante HTTP REST. Las partidas utilizan Socket.IO sobre WebSocket: la trivia en el namespace `/game` y el modo Historieta en `/story`.
 
 ## 3. Requisitos
 
@@ -103,7 +103,8 @@ Los módulos principales registrados en `AppModule` son:
 - `GameModule`: gateway y lógica de partidas.
 - `MatchModule`: creación, unión y estado de partidas.
 - `GameQueueModule`: trabajos temporizados de las partidas.
-- `WsAuthModule`: validación de tokens en conexiones WebSocket.
+- `StoryGameModule`: modo Historieta (namespace `/story`): lobby, personajes y turnos, con estado en Redis.
+- `WsAuthModule`: validación de tokens en conexiones WebSocket (`authenticateSocket` para `handleConnection`).
 - `CommonModule`: configuración, respuestas, filtros y utilidades compartidas.
 
 ### 4.3 Flujo de autenticación
@@ -124,6 +125,22 @@ Los módulos principales registrados en `AppModule` son:
 5. El propietario inicia la partida mediante `startGame`.
 6. BullMQ programa los tiempos de inicio y cambio de pregunta.
 7. Los clientes reciben eventos de preguntas, respuestas, jugadores y resultados.
+
+### 4.5 Flujo del modo Historieta
+
+Varios jugadores escriben una historieta en inglés, una viñeta por turno. Estados (solo los cambia el servidor):
+
+```text
+LOBBY → CHARACTERS → PLAYING → PROCESSING → REVIEW → FINISHED
+cualquier estado → ABANDONED (no quedan jugadores conectados)
+```
+
+1. El anfitrión emite `createStoryGame` y configura con `updateConfig`; los demás se unen con `joinStoryGame`.
+2. El anfitrión pasa a personajes con `startCharacters`; cada jugador envía su ficha con `createCharacter`.
+3. El anfitrión inicia con `startStory` (requiere que todos tengan personaje).
+4. Turnos, revisión de inglés con IA, audio y review final se agregan en fases posteriores.
+
+El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL`. Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
 
 ## 5. Tecnologías utilizadas
 
@@ -163,7 +180,8 @@ LinguaPlay/
 │   │   │       ├── category-question/
 │   │   │       ├── game/
 │   │   │       ├── question/
-│   │   │       └── question-options/
+│   │   │       ├── question-options/
+│   │   │       └── story-game/
 │   │   ├── test/
 │   │   ├── docker-compose.yml
 │   │   └── package.json
@@ -271,9 +289,28 @@ El gateway utiliza el namespace `/game` y valida el token recibido en `handshake
 | `questionEnded`  | Servidor → clientes | Informar el fin de una pregunta      |
 | `gameEnded`      | Servidor → clientes | Informar el fin de la partida        |
 
+#### Namespace `/story` (modo Historieta)
+
+Mismo mecanismo de autenticación (`handshake.auth.token`). Los payloads se validan con `class-validator`; los errores llegan por el ack si el cliente lo envió o, si no, por `storyError` con el formato `{ ok: false, status, message, code }`.
+
+| Evento              | Dirección           | Función                                                        |
+| ------------------- | ------------------- | -------------------------------------------------------------- |
+| `createStoryGame`   | Cliente → servidor  | Crear una partida (el creador es anfitrión)                    |
+| `joinStoryGame`     | Cliente → servidor  | Unirse con `{ gameId }` (solo en LOBBY; reconecta si ya estaba) |
+| `updateConfig`      | Cliente → servidor  | Anfitrión: `panelsCount`, `turnDurationSec`, `level`, `language` |
+| `startCharacters`   | Cliente → servidor  | Anfitrión: LOBBY → CHARACTERS (mínimo 2 jugadores)             |
+| `createCharacter`   | Cliente → servidor  | Guardar la ficha `{ name, type, trait, clothing, detail }`     |
+| `startStory`        | Cliente → servidor  | Anfitrión: CHARACTERS → PLAYING (todos con personaje)          |
+| `leaveGame`         | Cliente → servidor  | Salir de la partida                                            |
+| `lobbyUpdated`      | Servidor → sala     | Estado, anfitrión, configuración y jugadores                   |
+| `charactersUpdated` | Servidor → sala     | Fichas de personajes y jugadores que faltan                    |
+| `storyError`        | Servidor → emisor   | Error `{ ok, status, message, code }`                          |
+
+Eventos previstos para fases siguientes: `submitPanelDraft`, `confirmPanel`, `getGameState`, `getReviewManifest`, `turnStarted`, `panelReviewResult`, `panelConfirmed`, `storyProcessing`, `panelMediaReady`, `storyReviewReady`.
+
 ### 8.3 Respuestas y validación
 
-La API utiliza un formato de respuesta común mediante un interceptor global. También usa `ValidationPipe` con lista blanca de propiedades, rechazo de propiedades no permitidas y conversión implícita de tipos.
+La API utiliza un formato de respuesta común mediante un interceptor global. También usa `ValidationPipe` con lista blanca de propiedades, rechazo de propiedades no permitidas y conversión implícita de tipos. El pipe global no aplica a los gateways: `/story` declara el suyo con `@UsePipes` (sin conversión implícita).
 
 ## 10. Instalación y configuración
 
@@ -436,7 +473,7 @@ Antes de publicar el cliente, debe sustituirse la URL local de la API por la URL
 ### 13.3 Redis y partidas
 
 - Supervisar memoria y conexiones de Redis.
-- Revisar el valor de `MATCH_TTL` cuando cambien las reglas de expiración de partidas.
+- Revisar el valor de `MATCH_TTL` cuando cambien las reglas de expiración de partidas (aplica también a las partidas de Historieta).
 - Comprobar que BullMQ procese los trabajos temporizados.
 - Limpiar estados temporales que queden después de errores o desconexiones.
 
