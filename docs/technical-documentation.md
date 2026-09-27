@@ -104,7 +104,8 @@ Los módulos principales registrados en `AppModule` son:
 - `MatchModule`: creación, unión y estado de partidas.
 - `GameQueueModule`: trabajos temporizados de las partidas.
 - `StoryGameModule`: modo Historieta (namespace `/story`): lobby y turnos, con estado en Redis.
-- `StoryQueueModule`: tareas diferidas del modo Historieta (cola BullMQ `story-turn-timeout`).
+- `StoryQueueModule`: tareas diferidas del modo Historieta (cola BullMQ `story-turn-timeout`: cierre de turnos y abandono).
+- `LanguageReviewModule`: revisión de inglés de los borradores (`LanguageReviewer`); por ahora un revisor falso sin errores, Bedrock en la Fase 3.
 - `WsAuthModule`: validación de tokens en conexiones WebSocket (`authenticateSocket` para `handleConnection`).
 - `CommonModule`: configuración, respuestas, filtros y utilidades compartidas.
 
@@ -133,13 +134,18 @@ Varios jugadores escriben una historieta en inglés, una viñeta por turno. Esta
 
 ```text
 LOBBY → PLAYING → PROCESSING → REVIEW → FINISHED
-LOBBY/PLAYING → ABANDONED (nadie conectado durante 60 s, o todos salieron)
+LOBBY/PLAYING → ABANDONED (nadie conectado durante 60 s, o ya nadie puede volver)
 ```
 
 1. El anfitrión emite `createStoryGame` y configura con `updateConfig`; los demás se unen con `joinStoryGame`. El anfitrión puede expulsar con `kickPlayer`.
 2. El anfitrión inicia con `startStory` (al menos 2 jugadores conectados y una viñeta por jugador como mínimo).
-3. Los personajes se crean durante los turnos, junto con cada viñeta.
-4. Turnos, revisión de inglés con IA, audio y review final se agregan en fases posteriores.
+3. Por turnos, cada autor escribe su viñeta (`submitPanelDraft`: texto, escenario, personajes existentes y nuevos), recibe la revisión y confirma (`confirmPanel`). Tiene como máximo 2 revisiones y `turnDurationSec` segundos; al vencer, se confirma su último borrador o la viñeta queda sin texto.
+4. Los personajes nuevos entran al elenco recién cuando se confirma la viñeta, y no cambian después.
+5. Después de la última viñeta, la partida pasa a PROCESSING. La revisión con IA, el audio y el review final se agregan en fases posteriores.
+
+Un turno se cierra una sola vez aunque la confirmación y el timeout lleguen juntos: el cierre es una escritura con guarda en un script Lua de Redis, que solo pasa si la viñeta sigue abierta. La revisión del borrador se hace sin el lock de la partida tomado; su resultado se guarda solo si la viñeta sigue abierta y la revisión sigue siendo la misma.
+
+Si el autor del turno abandona, su viñeta se reasigna de inmediato al siguiente jugador conectado. Si quedan menos de 2 jugadores sin abandonar, la partida pasa a PROCESSING con las viñetas confirmadas.
 
 Si una partida en LOBBY o PLAYING queda sin nadie conectado, una tarea diferida de BullMQ (patrón `dueAt + seq`, como la trivia) la pasa a ABANDONED a los 60 s, salvo que alguien vuelva antes. El margen evita que un redeploy, que desconecta todos los sockets, mate las partidas en curso. PROCESSING y REVIEW nunca se abandonan.
 
@@ -304,12 +310,19 @@ Mismo mecanismo de autenticación (`handshake.auth.token`). Los payloads se vali
 | `joinStoryGame`     | Cliente → servidor  | Unirse con `{ gameId }` (solo en LOBBY; reconecta si ya estaba) |
 | `updateConfig`      | Cliente → servidor  | Anfitrión: `panelsCount`, `turnDurationSec`, `level`, `language` |
 | `kickPlayer`        | Cliente → servidor  | Anfitrión, solo en LOBBY: `{ userId }`; el expulsado recibe `KICKED` |
-| `startStory`        | Cliente → servidor  | Anfitrión: LOBBY → PLAYING                                     |
+| `startStory`        | Cliente → servidor  | Anfitrión: LOBBY → PLAYING y primer turno                      |
+| `submitPanelDraft`  | Cliente → servidor  | Autor: `{ panelOrder, text, scene, characterIds?, newCharacters? }` |
+| `confirmPanel`      | Cliente → servidor  | Autor: `{ panelOrder }`                                        |
+| `getGameState`      | Cliente → servidor  | Estado completo para ese jugador (reconexión)                  |
 | `leaveGame`         | Cliente → servidor  | Salir de la partida                                            |
 | `lobbyUpdated`      | Servidor → sala     | Estado, anfitrión, configuración y jugadores                   |
+| `turnStarted`       | Servidor → sala     | `panelOrder`, `authorId`, `endsAt`, `storySoFar`, `cast`       |
+| `panelReviewResult` | Servidor → autor    | Correcciones, `attemptsLeft`, `flagged` (sin el texto corregido) |
+| `panelConfirmed`    | Servidor → sala     | Viñeta confirmada y personajes nuevos                          |
+| `gameState`         | Servidor → jugador  | Estado completo al reconectarse                                |
 | `storyError`        | Servidor → emisor   | Error `{ ok, status, message, code }`                          |
 
-Eventos previstos para fases siguientes: `submitPanelDraft`, `confirmPanel`, `getGameState`, `getReviewManifest`, `turnStarted`, `panelReviewResult`, `panelConfirmed`, `storyProcessing`, `panelMediaReady`, `storyReviewReady`.
+Eventos previstos para fases siguientes: `getReviewManifest`, `storyProcessing`, `panelMediaReady`, `storyReviewReady`.
 
 ### 8.3 Respuestas y validación
 

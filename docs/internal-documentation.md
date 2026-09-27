@@ -272,7 +272,7 @@ Jugador → Socket.IO /story → StoryGameGateway → StoryGameService
 → StoryStateRepository → Redis → eventos de sala → clientes
 ```
 
-`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Los personajes se crean durante los turnos. Las tareas diferidas (abandono de partidas vacías y, desde la Fase 2, el cierre de turnos) van por la cola BullMQ `story-turn-timeout`.
+`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Cada autor escribe con `submitPanelDraft` y confirma con `confirmPanel`; los personajes se crean durante los turnos. Las tareas diferidas (cierre de turnos por tiempo y abandono de partidas vacías) van por la cola BullMQ `story-turn-timeout`. Las reglas de los turnos están en `domain/story-turns.ts`.
 
 ## 8. Pantallas y navegación
 
@@ -324,7 +324,13 @@ Modo Historieta:
 - Un usuario no puede estar en dos partidas de Historieta activas.
 - Si el anfitrión se desconecta o sale, el anfitrión pasa al siguiente jugador conectado en orden de entrada; no se devuelve al reconectarse.
 - Salir en LOBBY quita al jugador; salir después lo marca como retirado sin cambiar el orden de turnos.
-- Si en LOBBY o PLAYING no queda nadie conectado, la partida pasa a ABANDONED a los 60 s salvo que alguien vuelva (un redeploy no debe matar partidas). Si todos salieron, pasa en el acto. PROCESSING y REVIEW nunca se abandonan.
+- Si en LOBBY o PLAYING no queda nadie conectado, la partida pasa a ABANDONED a los 60 s salvo que alguien vuelva (un redeploy no debe matar partidas). Si ya nadie puede volver, pasa en el acto. PROCESSING y REVIEW nunca se abandonan.
+- La viñeta `i` es de `players[i % n]`; si ese jugador abandonó, del siguiente en orden.
+- Borrador: 8 palabras como mínimo, 320 caracteres de texto y 200 de escenario como máximo; hasta 3 personajes por viñeta (existentes + nuevos), hasta 2 nuevos, 6 en toda la historieta y sin nombres repetidos.
+- Cada viñeta tiene 2 revisiones como máximo. Solo una revisión exitosa y no inapropiada consume intento.
+- Los personajes nuevos entran al elenco recién al confirmar la viñeta.
+- Si el turno vence, se confirma el último borrador; sin borradores, la viñeta queda como `(The author ran out of time.)` con 0 puntos.
+- Si el autor abandona, su viñeta pasa al siguiente jugador conectado. Con menos de 2 jugadores sin abandonar, la partida pasa a PROCESSING con las viñetas confirmadas (o se abandona si no hay ninguna).
 
 Al modificar roles, puntuación, estados, tiempos o acceso, actualizar API, cliente, eventos y pruebas del flujo completo.
 
