@@ -95,7 +95,11 @@ MATCH_TTL=3600
 AWS_REGION=***
 COGNITO_USER_POOL_ID=***
 COGNITO_CLIENT_ID=***
+BEDROCK_REGION=
+BEDROCK_REVIEW_MODEL_ID=***
 ```
+
+`BEDROCK_REVIEW_MODEL_ID` (Amazon Nova 2 Lite, model ID o inference profile) activa la revisión de inglés del modo Historieta; sin él, los borradores se aceptan sin revisión.
 
 Los valores de AWS Cognito son específicos de cada entorno. No publicar secretos ni reutilizar credenciales sin autorización.
 
@@ -327,7 +331,8 @@ Modo Historieta:
 - Si en LOBBY o PLAYING no queda nadie conectado, la partida pasa a ABANDONED a los 60 s salvo que alguien vuelva (un redeploy no debe matar partidas). Si ya nadie puede volver, pasa en el acto. PROCESSING y REVIEW nunca se abandonan.
 - La viñeta `i` es de `players[i % n]`; si ese jugador abandonó, del siguiente en orden.
 - Borrador: 8 palabras como mínimo, 320 caracteres de texto y 200 de escenario como máximo; hasta 3 personajes por viñeta (existentes + nuevos), hasta 2 nuevos, 6 en toda la historieta y sin nombres repetidos.
-- Cada viñeta tiene 2 revisiones como máximo. Solo una revisión exitosa y no inapropiada consume intento.
+- Cada viñeta tiene 2 revisiones como máximo y 5 envíos de borrador. Solo una revisión exitosa y no inapropiada consume intento.
+- Puntaje por viñeta: precisión = round(100 × max(0, 1 − 3 × errores / palabras)) con los errores de la última revisión; +50 si la primera revisión no tuvo errores; +25 si la segunda tiene menos errores que la primera; por timeout la precisión vale la mitad; sin texto, 0; si la IA no pudo revisar el texto final, 60 fijos.
 - Los personajes nuevos entran al elenco recién al confirmar la viñeta.
 - Si el turno vence, se confirma el último borrador; sin borradores, la viñeta queda como `(The author ran out of time.)` con 0 puntos.
 - Si el autor abandona, su viñeta pasa al siguiente jugador conectado. Con menos de 2 jugadores sin abandonar, la partida pasa a PROCESSING con las viñetas confirmadas (o se abandona si no hay ninguna).

@@ -105,7 +105,7 @@ Los módulos principales registrados en `AppModule` son:
 - `GameQueueModule`: trabajos temporizados de las partidas.
 - `StoryGameModule`: modo Historieta (namespace `/story`): lobby y turnos, con estado en Redis.
 - `StoryQueueModule`: tareas diferidas del modo Historieta (cola BullMQ `story-turn-timeout`: cierre de turnos y abandono).
-- `LanguageReviewModule`: revisión de inglés de los borradores (`LanguageReviewer`); por ahora un revisor falso sin errores, Bedrock en la Fase 3.
+- `LanguageReviewModule`: revisión de inglés de los borradores con Amazon Nova 2 Lite en Bedrock (Converse API). Detalle en `apps/LP-API/src/modules/language-review/README.md`.
 - `WsAuthModule`: validación de tokens en conexiones WebSocket (`authenticateSocket` para `handleConnection`).
 - `CommonModule`: configuración, respuestas, filtros y utilidades compartidas.
 
@@ -141,7 +141,9 @@ LOBBY/PLAYING → ABANDONED (nadie conectado durante 60 s, o ya nadie puede volv
 2. El anfitrión inicia con `startStory` (al menos 2 jugadores conectados y una viñeta por jugador como mínimo).
 3. Por turnos, cada autor escribe su viñeta (`submitPanelDraft`: texto, escenario, personajes existentes y nuevos), recibe la revisión y confirma (`confirmPanel`). Tiene como máximo 2 revisiones y `turnDurationSec` segundos; al vencer, se confirma su último borrador o la viñeta queda sin texto.
 4. Los personajes nuevos entran al elenco recién cuando se confirma la viñeta, y no cambian después.
-5. Después de la última viñeta, la partida pasa a PROCESSING. La revisión con IA, el audio y el review final se agregan en fases posteriores.
+5. Después de la última viñeta, la partida pasa a PROCESSING. El audio y el review final se agregan en fases posteriores.
+
+La revisión la hace Amazon Nova 2 Lite (Bedrock, `temperature: 0`) con un presupuesto de 8 s que incluye un reintento. Si falla, el borrador se acepta sin revisión: la IA nunca bloquea la partida. El jugador recibe las correcciones con explicaciones en español, pero no el texto corregido mientras la viñeta está abierta. El puntaje de cada viñeta lo calcula el servidor a partir de la cantidad de errores (`calculatePanelScore`).
 
 Un turno se cierra una sola vez aunque la confirmación y el timeout lleguen juntos: el cierre es una escritura con guarda en un script Lua de Redis, que solo pasa si la viñeta sigue abierta. La revisión del borrador se hace sin el lock de la partida tomado; su resultado se guarda solo si la viñeta sigue abierta y la revisión sigue siendo la misma.
 
@@ -375,7 +377,11 @@ MATCH_TTL=3600
 AWS_REGION=***
 COGNITO_USER_POOL_ID=***
 COGNITO_CLIENT_ID=***
+BEDROCK_REGION=
+BEDROCK_REVIEW_MODEL_ID=***
 ```
+
+`BEDROCK_REVIEW_MODEL_ID` es el model ID o inference profile de Amazon Nova 2 Lite que muestra el catálogo de Bedrock (base: `amazon.nova-2-lite-v1:0`). Sin definir, el modo Historieta funciona sin revisión de inglés. `BEDROCK_REGION` vacío usa `AWS_REGION`. La identidad de AWS de la API necesita `bedrock:InvokeModel` sobre ese modelo o profile.
 
 ### 10.4 Iniciar infraestructura y API
 
