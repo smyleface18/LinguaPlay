@@ -316,6 +316,7 @@ Al añadir una pantalla, registrar la ruta en el stack correspondiente, document
 - Una respuesta inválida no actualiza la puntuación.
 - Una respuesta correcta suma 100 puntos de partida; una incorrecta suma 0.
 - Una revancha solo es válida cuando la partida está finalizada.
+- Al terminar una partida se suman `gamesPlayed` y, si ganó, `gamesWon` y `currentStreak` (una derrota la vuelve a 0). Con 2+ jugadores gana el de mayor puntaje (> 0; los empatados en el primer puesto ganan todos); en solitario, acertar al menos la mitad de las preguntas. Quien salió de la sala no gana (`determineWinners`).
 - La validación del cliente no reemplaza la validación del backend.
 
 Modo Historieta:
@@ -336,6 +337,7 @@ Modo Historieta:
 - Los personajes nuevos entran al elenco recién al confirmar la viñeta.
 - Si el turno vence, se confirma el último borrador; sin borradores, la viñeta queda como `(The author ran out of time.)` con 0 puntos.
 - Si el autor abandona, su viñeta pasa al siguiente jugador conectado. Con menos de 2 jugadores sin abandonar, la partida pasa a PROCESSING con las viñetas confirmadas (o se abandona si no hay ninguna).
+- El cliente toma rangos, límites y reacciones de `getStoryRules` (salen de `story-game.config.ts`); no los repite en su código.
 
 Al modificar roles, puntuación, estados, tiempos o acceso, actualizar API, cliente, eventos y pruebas del flujo completo.
 

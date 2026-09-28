@@ -152,6 +152,8 @@ Si el autor del turno abandona, su viñeta se reasigna de inmediato al siguiente
 
 Si una partida en LOBBY o PLAYING queda sin nadie conectado, una tarea diferida de BullMQ (patrón `dueAt + seq`, como la trivia) la pasa a ABANDONED a los 60 s, salvo que alguien vuelva antes. El margen evita que un redeploy, que desconecta todos los sockets, mate las partidas en curso. PROCESSING y REVIEW nunca se abandonan.
 
+Los jugadores guardan en Redis la key de S3 de su avatar, no la URL (las URLs firmadas vencen). El servidor la firma al enviar cada vista (`StoryAvatars`, URLs de 2 h reutilizadas mientras les queden 30 min) y las vistas llevan `avatarUrl`. Como firmar es asíncrono, el gateway emite a las salas por una cola en orden, para que los eventos no se reordenen.
+
 Cada socket de `/story` entra a una sala personal `user:{userId}`, y la partida actual de cada usuario se lee de Redis en cada evento, así el servidor puede avisar o sacar de una sala a un usuario en cualquier instancia.
 
 El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL` (24 h para una partida FINISHED). Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
@@ -231,7 +233,7 @@ La base de datos utiliza PostgreSQL y se accede mediante TypeORM. La opción `sy
 
 ### 7.2 Entidades principales
 
-- **User:** usuario, correo, nombre, rol, nivel, puntuación y avatar.
+- **User:** usuario, correo, nombre, rol, nivel, puntuación, avatar y métricas del dashboard (`gamesPlayed`, `gamesWon`, `currentStreak`), que se actualizan al terminar cada partida de trivia.
 - **Game:** configuración general de un juego y su dificultad.
 - **GameSession:** participación de un usuario en un juego, puntuación y posición.
 - **CategoryQuestion:** categoría, nivel, descripción y tipo.
@@ -320,7 +322,8 @@ Mismo mecanismo de autenticación (`handshake.auth.token`). Los payloads se vali
 | `getGameState`      | Cliente → servidor  | Estado completo para ese jugador (reconexión), con `scoreboard` |
 | `getReviewManifest` | Cliente → servidor  | `{ gameId }`: manifiesto del review (REVIEW o FINISHED)        |
 | `leaveGame`         | Cliente → servidor  | Salir de la partida                                            |
-| `lobbyUpdated`      | Servidor → sala     | Estado, anfitrión, configuración y jugadores                   |
+| `getStoryRules`     | Cliente → servidor  | Rangos de configuración, límites del borrador y personajes, y reacciones permitidas |
+| `lobbyUpdated`      | Servidor → sala     | Estado, anfitrión, configuración y jugadores (con `avatarUrl`) |
 | `turnStarted`       | Servidor → sala     | `panelOrder`, `authorId`, `endsAt`, `storySoFar`, `cast`       |
 | `panelReviewResult` | Servidor → autor    | Correcciones, `attemptsLeft`, `flagged` (sin el texto corregido) |
 | `authorStatus`      | Servidor → sala     | `order`, `status`: `writing`, `reviewing` o `correcting`       |
