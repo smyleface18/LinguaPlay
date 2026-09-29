@@ -1,220 +1,89 @@
 # LinguaPlay
 
-LinguaPlay es un proyecto modular que utiliza **Git Submodules** para gestionar diferentes componentes del sistema como repositorios independientes.
+LinguaPlay es una aplicación para practicar inglés jugando. Tiene dos modos:
 
-## Estructura del Proyecto
+- **Trivia:** preguntas por nivel del MCER (A1 a C2), sola o en salas multijugador en tiempo real.
+- **Historieta:** los jugadores escriben juntos una historieta, viñeta por viñeta. La IA revisa el inglés de cada viñeta, narra el texto y dibuja las imágenes.
+
+Las historietas terminadas se guardan. Todos pueden explorarlas, reaccionar a cada viñeta y darles like, y los administradores las moderan.
+
+## Estructura del proyecto
+
+El repositorio usa **Git Submodules**: cada aplicación es un repositorio independiente.
 
 ```
 LinguaPlay
-│
 ├── apps
-│   ├── LP-API            # Backend API
-│   └── LP-MOB            # Aplicación móvil
-│
-├── linguaplay-core       # Librería compartida entre aplicaciones
-│
-├── .gitmodules
-├── README.md
+│   ├── LP-API            # API NestJS (submódulo)
+│   └── LP-MOB            # App Expo / React Native: Android, iOS y web (submódulo)
+├── linguaplay-core       # tipos y contratos compartidos (submódulo; hoy no lo importan las apps)
+├── deploy                # despliegue con Docker Compose
+├── docs                  # documentación y diagramas UML
 └── LICENSE
 ```
 
-Cada uno de estos directorios es **un repositorio independiente gestionado como submódulo**.
-
 ## Documentación
 
-- Documentación técnica: `docs/technical-documentation.md`
-- Documentación interna para el equipo: `docs/internal-documentation.md`
+- [Manual técnico](docs/manual-tecnico.md), [manual de usuario](docs/manual-usuario.md) y [ficha técnica](docs/ficha-tecnica-dnda.md).
+- [Documentación técnica](docs/technical-documentation.md) y [documentación interna](docs/internal-documentation.md) del equipo.
+- [Diagramas UML](docs/README.md) en `docs/diagrams/`.
+- README de cada aplicación: [LP-API](apps/LP-API/README.md) y [LP-MOB](apps/LP-MOB/README.md).
 
----
+## Puesta en marcha (desarrollo)
 
-# Clonar el Proyecto
-
-Para clonar el proyecto correctamente junto con todos sus submódulos:
-
-Ejemplo:
+Requisitos: Git, Node.js 22 (el mínimo es 20), Yarn 1 y Docker Desktop. Para el móvil, además, Android Studio o Expo Go.
 
 ```bash
 git clone --recurse-submodules https://github.com/smyleface18/LinguaPlay.git
-```
+cd LinguaPlay
 
-Este comando descargará:
-
-- el repositorio principal
-- todos los submódulos configurados
-
----
-
-# Si el repositorio ya fue clonado sin submódulos
-
-Inicializar y descargar los submódulos manualmente:
-
-```bash
-git submodule update --init --recursive
-```
-
----
-
-# Actualizar el Proyecto
-
-Cuando haya cambios en el repositorio principal o en los submódulos:
-
-```bash
-git pull
-git submodule update --init --recursive
-```
-
-Esto sincroniza todos los submódulos con el commit registrado.
-
----
-
-# Actualizar Submódulos a la Última Versión
-
-Para traer el último commit disponible de cada submódulo:
-
-```bash
-git submodule update --remote --recursive
-```
-
----
-
-# Trabajar en un Submódulo
-
-Cada submódulo es un repositorio independiente.
-
-Ejemplo trabajando en la API:
-
-```bash
+# API
 cd apps/LP-API
+yarn install
+cp .env.template .env          # completar (PostgreSQL, Redis, AWS, IA)
+docker compose up -d           # PostgreSQL y Redis
+yarn migration:run
+yarn start:dev                 # http://localhost:3000
+
+# App (en otra terminal)
+cd apps/LP-MOB
+yarn install
+cp .env.example .env           # EXPO_PUBLIC_API_BASE_URL=http://localhost:3000
+yarn web                       # o yarn android
 ```
 
-Realizar cambios normalmente:
+## Despliegue
+
+Un servidor con Docker levanta la API, la versión web, PostgreSQL y Redis:
 
 ```bash
-git add .
-git commit -m "feat: nueva funcionalidad"
-git push
+cp deploy/.env.prod.example deploy/.env.prod     # completar; no se versiona
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
 ```
 
----
+- La API queda en el puerto `API_PORT` (3000) y corre las migraciones al arrancar.
+- La web queda en `WEB_PORT` (8080).
+- Para producción conviene poner delante un proxy con HTTPS.
 
-# Actualizar la Referencia del Submódulo en el Proyecto Principal
+El detalle está en el manual técnico.
 
-Después de hacer `push` en el submódulo, debes actualizar la referencia en el repositorio principal.
-
-Volver al repositorio principal:
+## Trabajo con submódulos
 
 ```bash
-cd ../..
+git submodule update --init --recursive     # después de clonar sin --recurse-submodules
+git pull && git submodule update --init --recursive
+git submodule status                        # commit de cada submódulo
 ```
 
-Verificar cambios:
+Flujo de un cambio:
 
-```bash
-git status
-```
+1. Commit y push dentro del submódulo (por ejemplo, `apps/LP-API`).
+2. En la raíz, registrar el commit nuevo:
 
-Agregar el submódulo actualizado:
+   ```bash
+   git add apps/LP-API
+   git commit -m "chore(submodules): update LP-API"
+   git push
+   ```
 
-```bash
-git add apps/LP-API
-```
-
-Crear commit:
-
-```bash
-git commit -m "update LP-API submodule"
-```
-
-Subir cambios:
-
-```bash
-git push
-```
-
-Esto actualiza el commit del submódulo que usa el proyecto.
-
----
-
-# Ver el Estado de los Submódulos
-
-Para ver qué commit tiene cada submódulo:
-
-```bash
-git submodule status
-```
-
-Ejemplo:
-
-```
-b7adbdf linguaplay-core
-a23c991 apps/LP-API
-98ab123 apps/LP-MOB
-```
-
----
-
-# Comandos Útiles
-
-Inicializar submódulos:
-
-```bash
-git submodule init
-```
-
-Descargar submódulos:
-
-```bash
-git submodule update
-```
-
-Actualizar todos los submódulos:
-
-```bash
-git submodule update --remote
-```
-
-Ver estado de submódulos:
-
-```bash
-git submodule status
-```
-
----
-
-# Flujo Recomendado de Trabajo
-
-### 1. Entrar al submódulo
-
-```bash
-cd apps/LP-API
-```
-
-### 2. Realizar cambios
-
-```bash
-git add .
-git commit -m "feature: nueva funcionalidad"
-git push
-```
-
-### 3. Volver al repositorio principal
-
-```bash
-cd ../..
-```
-
-### 4. Actualizar referencia del submódulo
-
-```bash
-git add apps/LP-API
-git commit -m "update LP-API submodule"
-git push
-```
-
----
-
-# Notas Importantes
-
-- Los submódulos **no se actualizan automáticamente**.
-- Siempre debes **hacer commit del submódulo en el repositorio principal** después de actualizarlo.
-- Cada submódulo tiene **su propio historial de Git y control de versiones**.
+Los submódulos no se actualizan solos. Cada uno tiene su propio historial.
