@@ -24,3 +24,11 @@ packages/*/dist/
 .idea/
 
 index.html
+
+# Documentación de referencia local (no se versiona)
+docs/internal/
+docs/plantillas/
+docs/entregables/
+
+# Variables reales del despliegue
+deploy/.env.prod
