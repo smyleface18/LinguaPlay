@@ -1,0 +1,49 @@
+@startuml
+' Catálogo de historietas: lectura, reacciones por viñeta y likes.
+' Fuente: modules/story-history (StoryCatalogController, StoryHistoryService).
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+
+actor "Jugador" as Player
+participant "LP-MOB\n(Explorar / My stories)" as Mobile
+participant "StoryCatalogController\n(/story/catalog)" as Ctrl
+participant "StoryHistoryService" as Service
+database "PostgreSQL" as DB
+participant "StoryUrlSigner\n(S3)" as Signer
+
+note over Ctrl: JwtAuthGuard (cualquier usuario autenticado)
+
+== Explorar ==
+Player -> Mobile: Buscar y filtrar por nivel
+Mobile -> Ctrl: GET /story/catalog?search&level&page
+Ctrl -> Service: listCatalog(userId, filtros)
+Service -> DB: historietas PUBLISHED
+Service -> DB: likes de la página (una consulta agrupada)
+Service -> Signer: portada y avatares firmados
+Ctrl --> Mobile: página de historietas (con likes)
+
+== Leer una historieta ==
+Player -> Mobile: Abrir historieta
+Mobile -> Ctrl: GET /story/catalog/:storyId
+Service -> DB: historieta, viñetas, participantes, likes
+Service -> Signer: audio e imágenes firmados
+Ctrl --> Mobile: manifiesto + likes + reacciones permitidas
+
+== Reaccionar a una viñeta ==
+Player -> Mobile: Tocar un emoji
+Mobile -> Mobile: actualización optimista
+Mobile -> Ctrl: PUT /story/catalog/:storyId/panels/:order/reaction { emoji | null }
+Ctrl -> Service: react
+Service -> DB: UPDATE story_panel.reactions (jsonb atómico,\nsolo si la historieta está publicada)
+Ctrl --> Mobile: reacciones de la viñeta
+alt error
+  Mobile -> Mobile: deshace el cambio y muestra el error
+end
+
+== Like a la historieta ==
+Player -> Mobile: Tocar Like
+Mobile -> Ctrl: PUT /story/catalog/:storyId/like\n(o DELETE para quitarlo)
+Service -> DB: INSERT ... ON CONFLICT DO NOTHING\n(o DELETE)
+Ctrl --> Mobile: { count, likedByMe }
+
+@enduml

@@ -1,4 +1,6 @@
 @startuml
+' Diagrama de clases: entidades TypeORM (apps/LP-API/src/db/entities) y
+' dominio de la trivia guardado en Redis (modules/game/match/domain).
 left to right direction
 skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
@@ -6,9 +8,8 @@ skinparam linetype ortho
 skinparam nodesep 40
 skinparam ranksep 30
 
-package "Database Entities (TypeORM)" {
-  together {
-  class CoreEntity {
+package "Entidades (TypeORM, PostgreSQL)" {
+  abstract class CoreEntity {
     +id: uuid
     +active: boolean
     +createdAt: Date
@@ -19,9 +20,47 @@ package "Database Entities (TypeORM)" {
     +username: string
     +email: string
     +score: number
+    +gamesPlayed: number
+    +gamesWon: number
+    +currentStreak: number
     +userRole: UserRoles
     +level: Level
-    +avatar: S3Object
+    +avatarId: uuid?
+  }
+
+  class MediaAsset {
+    +key: string
+    +bucketName: string
+    +contentType: ContentType
+    +mimeType: string?
+    +displayName: string?
+    +size: number?
+    +url: string?
+    +status: MediaStatus
+    +uploadedByUserId: uuid?
+  }
+
+  class CategoryQuestion {
+    +level: Level
+    +descriptionCategory: string
+    +type: TypeQuestionCategory
+  }
+
+  class Question {
+    +contentType: ContentType
+    +text: string
+    +moreInfo: string?
+    +categoryId: uuid
+    +timeLimit: number
+    +mediaId: uuid?
+  }
+
+  class QuestionOption {
+    +contentType: ContentType
+    +text: string?
+    +isCorrect: boolean
+    +questionId: uuid
+    +mediaId: uuid?
   }
 
   class Game {
@@ -32,26 +71,7 @@ package "Database Entities (TypeORM)" {
     +userId: uuid
     +gameId: uuid
     +score: number
-    +position: number
-  }
-
-  class CategoryQuestion {
-    +level: Level
-    +descriptionCategory: string
-    +type: TypeQuestionCategory
-  }
-
-  class Question {
-    +content: ContentObject
-    +moreInfo: string
-    +categoryId: uuid
-    +timeLimit: number
-  }
-
-  class QuestionOption {
-    +content: ContentObject
-    +isCorrect: boolean
-    +questionId: uuid
+    +position: number?
   }
 
   class PlayerAnswer {
@@ -61,24 +81,70 @@ package "Database Entities (TypeORM)" {
     +isCorrect: boolean
     +timeTaken: number
   }
+
+  class Story {
+    +gameId: string {unique}
+    +title: string?
+    +level: Level
+    +language: string
+    +panelsCount: number
+    +characters: jsonb
+    +finishedAt: Date
+    +visibility: StoryVisibility
+    +removedAt: Date?
+    +removedById: uuid?
+    +removalReason: StoryRemovalReason?
+    +removalNote: string?
   }
 
-  together {
-  class ContentObject {
-    +type: ContentType
-    +value: string
-    +meta: S3Object
+  class StoryPanel {
+    +storyId: uuid
+    +order: number
+    +authorId: uuid?
+    +authorName: string
+    +originalText: string
+    +finalText: string
+    +scene: string
+    +characterIds: jsonb
+    +corrections: jsonb
+    +score: jsonb
+    +reactions: jsonb
+    +mediaStatus: string
+    +audioKey: string?
+    +imageKey: string?
+    +speechMarks: jsonb?
   }
 
-  class S3Object {
-    +key: string
-    +type: string
-    +displayName: string
-    +url: string
-    +bucketName: string
-  }
+  class StoryParticipant {
+    +storyId: uuid
+    +userId: uuid
+    +username: string
+    +position: number
+    +panelsWritten: number
+    +totalScore: number
+    +averageScore: number
+    +left: boolean
   }
 
+  class StoryLike {
+    +storyId: uuid
+    +userId: uuid
+  }
+
+  class StoryModerationLog {
+    +storyId: uuid
+    +action: StoryModerationAction
+    +adminId: uuid?
+    +reason: StoryRemovalReason?
+    +note: string?
+  }
+}
+
+package "Enumeraciones" {
+  enum UserRoles {
+    PLAYER
+    ADMIN
+  }
   enum Level {
     A1
     A2
@@ -87,14 +153,12 @@ package "Database Entities (TypeORM)" {
     C1
     C2
   }
-
   enum ContentType {
     TEXT
     IMAGE
     AUDIO
     VIDEO
   }
-
   enum TypeQuestionCategory {
     LISTENING
     GRAMMAR
@@ -103,116 +167,103 @@ package "Database Entities (TypeORM)" {
     WRITING
     SPEAKING
   }
-
-  enum UserRoles {
-    PLAYER
-    ADMIN
+  enum MediaStatus {
+    PENDING
+    CONFIRMED
+  }
+  enum StoryVisibility {
+    PUBLISHED
+    REMOVED
+  }
+  enum StoryModerationAction {
+    REMOVED
+    RESTORED
+  }
+  enum StoryRemovalReason {
+    INAPPROPRIATE_CONTENT
+    OFFENSIVE_LANGUAGE
+    PERSONAL_DATA
+    SPAM
+    OTHER
   }
 }
 
-package "Game Domain (in-memory/cache)" {
+package "Dominio de la trivia (Redis)" {
   class Match {
     -roomId: string
     -status: MatchStatus
-    -currentQuestionIndex: number
-    -players: Map<string, PlayerInfo>
-    -difficulty: Level
     -mode: ModeMatch
-    +getRoomId(): string
-    +getDifficulty(): Level
-    +getMode(): ModeMatch
-    +addPlayer(userId: string, username: string, level: Level, totalScore: number, avatar: string): void
-    +disconnectPlayer(userId: string): void
-    +reconnectPlayer(userId: string): void
-    +isUserConnected(userId: string): boolean
-    +getPlayersCount(): number
-    +getPlayers(): string[]
-    +getPlayersWithInfo(): PlayerInfo[]
-    +sendNextQuestion(): Question
-    +addScore(userId: string, points: number): void
-    +finishCurrentQuestion(): void
-    +hasNextQuestion(): boolean
+    -difficulty: Level
+    -players: Map<string, PlayerInfo>
+    +addPlayer(...)
+    +start()
+    +addScore(userId, points)
     +getResults(): PlayerInfo[]
-    +getStatus(): MatchStatus
-    +getQuestions(): Question[]
-    +getQuestionById(questionId: string): Question
-    +getOwner(): User
-    +start(): void
-    +getcurrentQuestionIndex(): number
-    +calculateMatchTimeout(): number
-    +getNextQuestion(): Question
-    +toPersistence(): any
-    +isRoomEmpty(): boolean
-    +setStatus(status: MatchStatus): void
-    {static} +fromPersistence(data: unknown): Match
+    +toPersistence()
+    {static} +fromPersistence(data): Match
   }
-
   class PlayerInfo {
     +userId: string
     +username: string
-    +level: Level
     +matchScore: number
     +totalScore: number
     +isConnected: boolean
     +isOwner: boolean
-    +avatar: string
   }
-
   enum MatchStatus {
     WAITING
+    STARTING
+    PREPARING
     QUESTION_ACTIVE
     PROCESSING
     BETWEEN_QUESTIONS
     FINISHED
-    STARTING
-    PREPARING
   }
-
   enum ModeMatch {
     SINGLEPLAYER
     MULTIPLAYER
   }
 }
 
-User -[hidden]- Game
-Game -[hidden]- GameSession
-CategoryQuestion -[hidden]- Question
-Question -[hidden]- QuestionOption
-GameSession -[hidden]- PlayerAnswer
-Question -[hidden]- ContentObject
-ContentObject -[hidden]- S3Object
-
 CoreEntity <|-- User
-CoreEntity <|-- Game
-CoreEntity <|-- GameSession
+CoreEntity <|-- MediaAsset
 CoreEntity <|-- CategoryQuestion
 CoreEntity <|-- Question
 CoreEntity <|-- QuestionOption
+CoreEntity <|-- Game
+CoreEntity <|-- GameSession
 CoreEntity <|-- PlayerAnswer
+CoreEntity <|-- Story
+CoreEntity <|-- StoryPanel
+CoreEntity <|-- StoryParticipant
+CoreEntity <|-- StoryLike
+CoreEntity <|-- StoryModerationLog
 
-User "1" -- "0..*" GameSession : sessions
-Game "1" -- "0..*" GameSession : sessions
-Game "*" -- "*" Question : questions
+User "0..*" --> "0..1" MediaAsset : avatar
+MediaAsset "0..*" --> "0..1" User : uploadedBy
 CategoryQuestion "1" -- "0..*" Question : questions
-Question "1" -- "0..*" QuestionOption : options
-GameSession "1" -- "0..*" PlayerAnswer : answers
-Question "1" -- "0..*" PlayerAnswer
-QuestionOption "1" -- "0..*" PlayerAnswer
+Question "1" *-- "0..*" QuestionOption : options
+Question "0..*" --> "0..1" MediaAsset : media
+QuestionOption "0..*" --> "0..1" MediaAsset : media
+Game "*" -- "*" Question : questions
+User "1" -- "0..*" GameSession : gameSessions
+Game "1" -- "0..*" GameSession : sessions
+GameSession "1" *-- "0..*" PlayerAnswer : answers
+PlayerAnswer "0..*" --> "1" Question
+PlayerAnswer "0..*" --> "1" QuestionOption : selectedOption
 
-Question --> ContentObject
-QuestionOption --> ContentObject
-ContentObject --> S3Object : meta
-User --> S3Object : avatar
-User --> UserRoles
+Story "1" *-- "0..*" StoryPanel : panels
+Story "1" *-- "0..*" StoryParticipant : participants
+Story "1" *-- "0..*" StoryLike
+Story "1" *-- "0..*" StoryModerationLog
+Story "0..*" --> "0..1" User : removedBy
+StoryPanel "0..*" --> "0..1" User : author
+StoryParticipant "0..*" --> "1" User
+StoryLike "0..*" --> "1" User
+StoryModerationLog "0..*" --> "0..1" User : admin
 
 Match "1" o-- "*" PlayerInfo : players
-Match --> Level
-Match --> ModeMatch
 Match --> MatchStatus
-
-User --> Level
-CategoryQuestion --> Level
-CategoryQuestion --> TypeQuestionCategory
-ContentObject --> ContentType
+Match --> ModeMatch
 
 @enduml

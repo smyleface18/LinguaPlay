@@ -1,28 +1,50 @@
 @startuml
+' Despliegue de LinguaPlay con deploy/docker-compose.prod.yml.
+' Los servicios externos (AWS y Cloudflare) se configuran por variables de entorno.
 skinparam nodeStyle rectangle
 
-node "Mobile Device/ Browser" as Device {
-  artifact "LP-MOB App / web" as Frontend
+node "Dispositivo del usuario" as Device {
+  node "Navegador web" as Browser {
+    artifact "LP-MOB web\n(bundle de expo export)" as WebApp
+  }
+  node "Android" as Android {
+    artifact "LP-MOB (APK/AAB, EAS Build)" as AndroidApp
+  }
 }
 
-node "API Server" as ApiServer {
-  artifact "LP-API (NestJS)" as Api
+node "Servidor Docker (docker compose)" as Host {
+  node "contenedor web\n(nginx:alpine, puerto 8080)" as WebNode {
+    artifact "estáticos de LP-MOB web" as Static
+  }
+  node "contenedor api\n(node:20-alpine, puerto 3000)" as ApiNode {
+    artifact "LP-API (NestJS)\nmigraciones al arrancar" as Api
+  }
+  node "contenedor postgres\n(postgres:15)" as PgNode {
+    database "PostgreSQL\nvolumen pgdata" as DB
+  }
+  node "contenedor redis\n(redis-stack-server)" as RedisNode {
+    artifact "Redis\n(estado de salas, locks,\ncolas BullMQ, adapter Socket.IO)" as Redis
+  }
 }
 
-node "Redis Server" as RedisNode {
-  artifact "Redis" as Redis
+cloud "AWS" {
+  [Cognito\n(usuarios y JWT)] as Cognito
+  [S3\n(multimedia)] as S3
+  [Bedrock\n(revisión y título)] as Bedrock
+  [Polly\n(narración)] as Polly
 }
+cloud "Cloudflare Workers AI\n(imágenes)" as CF
 
-node "Database Server" as DbNode {
-  artifact "SQL Database" as DB
-}
-
-cloud "AWS Cognito" as Cognito
-
-Frontend --> Api : HTTPS REST
-Frontend --> Api : Socket.io /game
-Api --> Redis : cache + match state
-Api --> DB : TypeORM
-Api --> Cognito : Auth
+Browser --> WebNode : HTTPS (estáticos)
+WebApp --> Api : HTTPS REST + Socket.IO\n(/game, /story)
+AndroidApp --> Api : HTTPS REST + Socket.IO
+Api --> DB : TypeORM (5432)
+Api --> Redis : ioredis / BullMQ (6379)
+Api --> Cognito
+Api --> S3
+Api --> Bedrock
+Api --> Polly
+Api --> CF
+WebApp --> S3 : URLs firmadas\n(audio, imágenes)
 
 @enduml

@@ -3,188 +3,109 @@
 skinparam componentStyle rectangle
 skinparam packageStyle rectangle
 
-title LinguaPlay - Arquitectura de componentes
+title LinguaPlay - Estructura del proyecto
+
+' =========================================================
+' Repositorio raíz (submódulos)
+' =========================================================
+
+package "LinguaPlay (repositorio raíz)" {
+    [docs/\n(documentación y diagramas)] as Docs
+    [deploy/\n(docker-compose.prod.yml)] as Deploy
+    [linguaplay-core/\n(tipos y contratos compartidos)] as Core
+}
 
 ' =========================================================
 ' LP-MOB
 ' =========================================================
 
-package "LP-MOB - React Native" {
-
-    package "src" {
-
-        package "app" as MobApp {
-            [App / Navigation]
-        }
-
-        package "features" {
-
-            package "auth" as MobAuth {
-                [Auth Feature]
-            }
-
-            package "category" as MobCategory {
-                [Category Feature]
-            }
-
-            package "game" as MobGame {
-                [Game Feature]
-                [SocketService]
-            }
-
-            package "question" as MobQuestion {
-                [Question Feature]
-            }
-        }
-
-        package "shared" as MobShared {
-            [Shared Components]
-        }
-
-        package "store" as MobStore {
-            [Global Store]
-        }
+package "apps/LP-MOB (Expo / React Native)" {
+    package "src/app" {
+        [navigation\n(MainTabs, MainTabs.web, stacks)] as MobNav
+        [providers\n(tema, sesión)] as MobProviders
     }
+    package "src/features" {
+        [auth] as MobAuth
+        [game] as MobGame
+        [story\n(+ story/admin)] as MobStory
+        [category] as MobCategory
+        [question] as MobQuestion
+        [stats] as MobStats
+    }
+    package "src/shared" {
+        [api\n(cliente HTTP, endpoints)] as MobApi
+        [components / ui\n(componentes y tema)] as MobUi
+        [adapters / types / screens] as MobSharedMisc
+    }
+    [store\n(Zustand: auth, ui)] as MobStore
 }
-
 
 ' =========================================================
 ' LP-API
 ' =========================================================
 
-package "LP-API - NestJS" {
-
-    package "src" {
-
-        package "common" as ApiCommon {
-            [Common]
-        }
-
-        package "db" as ApiDB {
-            [Database Configuration]
-        }
-
-        package "entities" as ApiEntities {
-            [Entities]
-        }
-
-        package "migrations" as ApiMigrations {
-            [Migrations]
-        }
-
-        package "modules" {
-
-            package "auth" as ApiAuth {
-                [AuthModule]
-                [AuthController]
-                [AuthService]
-            }
-
-            package "category-question" as ApiCategoryQuestion {
-                [CategoryQuestionModule]
-                [CategoryQuestionController]
-                [CategoryQuestionService]
-            }
-
-            package "game" as ApiGame {
-                [GameModule]
-                [GameGateway]
-                [GameService]
-            }
-
-            package "question" as ApiQuestion {
-                [QuestionModule]
-                [QuestionController]
-                [QuestionService]
-            }
-
-            package "question-options" as ApiQuestionOptions {
-                [QuestionOptionsModule]
-                [QuestionOptionsController]
-                [QuestionOptionsService]
-            }
-        }
+package "apps/LP-API (NestJS)" {
+    package "src/common" {
+        [envs, guards, ws-auth] as ApiCommonSec
+        [redis, cache, storage (S3)] as ApiCommonInfra
+        [api (respuestas y filtros)] as ApiCommonApi
     }
+    package "src/db" {
+        [entities] as ApiEntities
+        [migrations] as ApiMigrations
+        [enum] as ApiEnums
+    }
+    package "src/modules" {
+        [auth] as ApiAuth
+        [category-question / question /\nquestion-options] as ApiContent
+        [media] as ApiMedia
+        [game (+ match, queue)] as ApiGame
+        [story-game (+ queue)] as ApiStoryGame
+        [language-review] as ApiReview
+        [story-media] as ApiStoryMedia
+        [story-history] as ApiStoryHistory
+        [stats] as ApiStats
+    }
+    [test/\n(pruebas e2e y scripts manuales)] as ApiTest
 }
 
+MobNav --> MobAuth
+MobNav --> MobGame
+MobNav --> MobStory
+MobNav --> MobCategory
+MobNav --> MobQuestion
+MobNav --> MobStats
+MobAuth --> MobApi
+MobStory --> MobApi
+MobCategory --> MobApi
+MobQuestion --> MobApi
+MobStats --> MobApi
+MobAuth --> MobStore
+MobGame --> MobUi
+MobStory --> MobUi
 
-' =========================================================
-' INFRAESTRUCTURA
-' =========================================================
+MobApi ..> ApiAuth : HTTP
+MobApi ..> ApiContent : HTTP
+MobApi ..> ApiStoryHistory : HTTP
+MobApi ..> ApiStats : HTTP
+MobGame ..> ApiGame : Socket.IO /game
+MobStory ..> ApiStoryGame : Socket.IO /story
 
-database "PostgreSQL" as PostgreSQL
-node "Redis" as Redis
-queue "BullMQ" as BullMQ
-cloud "AWS Cognito" as Cognito
+ApiGame --> ApiEntities
+ApiStoryGame --> ApiReview
+ApiStoryGame --> ApiStoryMedia
+ApiStoryHistory --> ApiEntities
+ApiStats --> ApiEntities
+ApiContent --> ApiEntities
+ApiAuth --> ApiCommonSec
+ApiEntities --> ApiMigrations
 
-
-' =========================================================
-' COMUNICACIÓN MOBILE -> API
-' =========================================================
-
-[Auth Feature] --> [AuthController] : REST /auth
-
-[Category Feature] --> [CategoryQuestionController] : REST
-[Question Feature] --> [QuestionController] : REST
-[Question Feature] --> [QuestionOptionsController] : REST
-
-[Game Feature] --> [SocketService] : Socket.io
-[SocketService] --> [GameGateway] : WebSocket
-
-
-' =========================================================
-' GAME
-' =========================================================
-
-[GameGateway] --> [GameService] : delegates game logic
-
-[GameService] --> Redis : match state / cache
-[GameService] --> BullMQ : question timeouts
-
-
-' =========================================================
-' AUTH
-' =========================================================
-
-[AuthService] --> Cognito : authentication
-[AuthService] --> PostgreSQL : users
-
-
-' =========================================================
-' DATABASE
-' =========================================================
-
-[QuestionService] --> PostgreSQL
-[CategoryQuestionService] --> PostgreSQL
-[QuestionOptionsService] --> PostgreSQL
-
-[AuthService] --> [Entities]
-[QuestionService] --> [Entities]
-[CategoryQuestionService] --> [Entities]
-[QuestionOptionsService] --> [Entities]
-
-[Database Configuration] --> PostgreSQL
-[Database Configuration] --> [Entities]
-[Database Configuration] --> [Migrations]
-
-
-' =========================================================
-' SHARED / GLOBAL
-' =========================================================
-
-[App / Navigation] --> [Auth Feature]
-[App / Navigation] --> [Category Feature]
-[App / Navigation] --> [Game Feature]
-[App / Navigation] --> [Question Feature]
-
-[Auth Feature] --> [Global Store]
-[Category Feature] --> [Global Store]
-[Game Feature] --> [Global Store]
-[Question Feature] --> [Global Store]
-
-[Auth Feature] --> [Shared Components]
-[Category Feature] --> [Shared Components]
-[Game Feature] --> [Shared Components]
-[Question Feature] --> [Shared Components]
+note right of Core
+  Paquete @linguaplay/core: tipos y
+  contratos compartidos. Hoy no lo
+  importan LP-API ni LP-MOB.
+end note
+Deploy ..> ApiAuth : imagen api
+Deploy ..> MobNav : imagen web
 
 @enduml

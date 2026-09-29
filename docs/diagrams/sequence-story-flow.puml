@@ -1,0 +1,64 @@
+@startuml
+' Partida del modo Historieta, de punta a punta.
+' Fuente: modules/story-game, language-review, story-media y story-history.
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 12
+
+actor "Jugadores" as Players
+participant "LP-MOB" as Mobile
+participant "StoryGameGateway\n(/story)" as Gateway
+participant "StoryGameService" as Service
+database "Redis\n(story:{gameId})" as Redis
+participant "LanguageReviewService" as Review
+queue "BullMQ\nstory-media" as MediaQueue
+participant "StoryMediaService" as Media
+participant "Servicios externos\n(Bedrock, Polly,\nCloudflare, S3)" as Ext
+participant "StoryHistoryService" as History
+database "PostgreSQL" as DB
+
+== Lobby ==
+Players -> Mobile: Crear historieta o unirse con código
+Mobile -> Gateway: createStoryGame / joinStoryGame
+Gateway -> Service: crear o unir (lock + script Lua)
+Service -> Redis: estado de la partida
+Gateway --> Mobile: lobbyUpdated (a la sala)
+Players -> Mobile: Configurar y empezar (anfitrión)
+Mobile -> Gateway: updateConfig / startStory
+
+== Turnos (una viñeta por turno) ==
+loop por cada viñeta
+  Gateway --> Mobile: turnStarted (autor, turnEndsAt)
+  Players -> Mobile: Texto, escenario y personajes
+  Mobile -> Gateway: submitPanelDraft
+  Gateway -> Review: revisar borrador (nivel del jugador)
+  Review -> Ext: Bedrock Converse (Nova 2 Lite)
+  Ext --> Review: correcciones
+  Gateway --> Mobile: panelReviewResult al autor /\npanelDraftReviewed a los demás
+  Mobile -> Gateway: confirmPanel
+  Service -> Redis: viñeta cerrada + puntaje
+  Gateway --> Mobile: panelConfirmed
+  note over Service: Si vence el tiempo, la cola story-turn-timeout\ncierra el turno con el último borrador.
+end
+
+== Generación de media (PROCESSING) ==
+Service -> MediaQueue: panel-audio y panel-image por viñeta
+Gateway --> Mobile: storyProcessing (avance)
+MediaQueue -> Media: generateAudio / generateImage
+Media -> Ext: Polly (audio + speech marks)\nCloudflare Workers AI (imagen, 5 intentos)
+Media -> Ext: S3 PutObject
+Media -> Service: onPanelAudio / onPanelImage
+Service -> Ext: Bedrock: título de la historieta
+Gateway --> Mobile: panelMediaReady (URLs firmadas)
+
+== Review y cierre ==
+Gateway --> Mobile: storyReviewReady (manifiesto)
+Mobile --> Players: Review narrado viñeta por viñeta
+opt reacciones
+  Mobile -> Gateway: reactToPanel(order, emoji)
+  Gateway --> Mobile: panelReaction (a la sala)
+end
+Service -> Redis: FINISHED (TTL 1 h)
+Service -> History: evento story.finished
+History -> DB: story, story_panel, story_participant\n(una transacción)
+
+@enduml

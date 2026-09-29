@@ -1,107 +1,193 @@
 @startuml
+' Modelo relacional de PostgreSQL. Fuente: migraciones de
+' apps/LP-API/src/db/migrations (tablas, FKs con su ON DELETE e índices).
+' Todas las tablas heredan de CoreEntity: id (PK uuid), active, createdAt, updatedAt.
 left to right direction
 skinparam linetype ortho
 skinparam roundcorner 6
 skinparam entityAttributeIconSize 0
 
-entity "USER" as USER {
-  *id : uuid
+entity "user" as USER {
+  *id : uuid <<PK>>
   --
-  active : boolean
-  createdAt : datetime
-  updatedAt : datetime
-  username : string
-  email : string
+  username : varchar
+  email : varchar
   score : int
-  userRole : string
-  level : string
-  avatar : json
+  gamesPlayed : int
+  gamesWon : int
+  currentStreak : int
+  userRole : enum(PLAYER, ADMIN)
+  level : enum(A1..C2)
+  avatar_id : uuid <<FK media_asset, SET NULL>>
 }
 
-entity "GAME" as GAME {
-  *id : uuid
+entity "media_asset" as MEDIA {
+  *id : uuid <<PK>>
   --
-  active : boolean
-  createdAt : datetime
-  updatedAt : datetime
-  difficulty : string
+  key : varchar
+  bucketName : varchar
+  contentType : enum
+  mimeType : varchar?
+  displayName : varchar?
+  size : int?
+  url : varchar?
+  status : enum(PENDING, CONFIRMED)
+  uploaded_by_user_id : uuid <<FK user, SET NULL>>
 }
 
-entity "GAME_SESSION" as GAME_SESSION {
-  *id : uuid
+entity "category_question" as CATEGORY {
+  *id : uuid <<PK>>
   --
-  active : boolean
-  createdAt : datetime
-  updatedAt : datetime
-  user_id : uuid
-  game_id : uuid
-  score : int
-  position : int
+  level : enum(A1..C2)
+  descriptionCategory : varchar
+  type : enum(LISTENING..SPEAKING)
 }
 
-entity "CATEGORY_QUESTION" as CATEGORY_QUESTION {
-  *id : uuid
+entity "question" as QUESTION {
+  *id : uuid <<PK>>
   --
-  active : boolean
-  createdAt : datetime
-  updatedAt : datetime
-  level : string
-  descriptionCategory : string
-  type : string
-}
-
-entity "QUESTION" as QUESTION {
-  *id : uuid
-  --
-  active : boolean
-  createdAt : datetime
-  updatedAt : datetime
-  content : json
-  moreInfo : text
-  category_id : uuid
+  contentType : enum
+  text : text
+  moreInfo : text?
   timeLimit : int
+  category_id : uuid <<FK category_question>>
+  media_id : uuid <<FK media_asset, SET NULL>>
 }
 
-entity "QUESTION_OPTION" as QUESTION_OPTION {
-  *id : uuid
+entity "question_option" as OPTION {
+  *id : uuid <<PK>>
   --
-  active : boolean
-  createdAt : datetime
-  updatedAt : datetime
-  content : json
+  contentType : enum
+  text : text?
   isCorrect : boolean
-  question_id : uuid
+  question_id : uuid <<FK question, CASCADE>>
+  media_id : uuid <<FK media_asset, SET NULL>>
 }
 
-entity "PLAYER_ANSWER" as PLAYER_ANSWER {
-  *id : uuid
+entity "game" as GAME {
+  *id : uuid <<PK>>
   --
-  active : boolean
-  createdAt : datetime
-  updatedAt : datetime
-  game_session_id : uuid
-  question_id : uuid
-  selected_option_id : uuid
+  difficulty : enum(A1..C2)
+}
+
+entity "game_questions_question" as GAME_Q {
+  *gameId : uuid <<FK game, CASCADE>>
+  *questionId : uuid <<FK question>>
+}
+
+entity "game_session" as SESSION {
+  *id : uuid <<PK>>
+  --
+  score : int
+  position : int?
+  user_id : uuid <<FK user>>
+  game_id : uuid <<FK game>>
+}
+
+entity "player_answer" as ANSWER {
+  *id : uuid <<PK>>
+  --
   isCorrect : boolean
   timeTaken : int
+  game_session_id : uuid <<FK game_session>>
+  question_id : uuid <<FK question>>
+  selected_option_id : uuid <<FK question_option>>
 }
 
-entity "GAME_QUESTIONS_QUESTION" as GAME_QUESTIONS_QUESTION {
-  *gameId : uuid
-  *questionId : uuid
+entity "story" as STORY {
+  *id : uuid <<PK>>
+  --
+  gameId : varchar <<UNIQUE>>
+  title : varchar(80)?
+  level : enum(A1..C2)
+  language : varchar
+  panelsCount : int
+  characters : jsonb
+  finishedAt : timestamptz
+  visibility : enum(PUBLISHED, REMOVED)
+  removedAt : timestamptz?
+  removed_by_id : uuid <<FK user, SET NULL>>
+  removalReason : enum?
+  removalNote : varchar(500)?
+  .. índice (visibility, finishedAt) ..
 }
 
-USER ||--o{ GAME_SESSION 
-GAME ||--o{ GAME_SESSION 
+entity "story_panel" as PANEL {
+  *id : uuid <<PK>>
+  --
+  story_id : uuid <<FK story, CASCADE>>
+  order : int
+  author_id : uuid <<FK user, SET NULL>>
+  authorName : varchar
+  originalText : text
+  finalText : text
+  scene : text
+  characterIds : jsonb
+  corrections : jsonb
+  score : jsonb
+  reactions : jsonb
+  mediaStatus : varchar
+  audioKey : varchar?
+  imageKey : varchar?
+  speechMarks : jsonb?
+  .. único (story_id, order) ..
+}
 
-CATEGORY_QUESTION ||--o{ QUESTION 
-QUESTION ||--o{ QUESTION_OPTION  
+entity "story_participant" as PARTICIPANT {
+  *id : uuid <<PK>>
+  --
+  story_id : uuid <<FK story, CASCADE>>
+  user_id : uuid <<FK user, CASCADE>>
+  username : varchar
+  position : int
+  panelsWritten : int
+  totalScore : int
+  averageScore : real
+  left : boolean
+  .. único (story_id, user_id); índice user_id ..
+}
 
-GAME_SESSION ||--o{ PLAYER_ANSWER  
-QUESTION ||--o{ PLAYER_ANSWER 
-QUESTION_OPTION ||--o{ PLAYER_ANSWER 
+entity "story_like" as LIKE {
+  *id : uuid <<PK>>
+  --
+  story_id : uuid <<FK story, CASCADE>>
+  user_id : uuid <<FK user, CASCADE>>
+  .. único (story_id, user_id) ..
+}
 
-GAME ||--o{ GAME_QUESTIONS_QUESTION 
-QUESTION ||--o{ GAME_QUESTIONS_QUESTION 
+entity "story_moderation_log" as MODLOG {
+  *id : uuid <<PK>>
+  --
+  story_id : uuid <<FK story, CASCADE>>
+  action : enum(REMOVED, RESTORED)
+  admin_id : uuid <<FK user, SET NULL>>
+  reason : enum?
+  note : varchar(500)?
+  .. índice (story_id, createdAt) ..
+}
+
+MEDIA |o--o{ USER : avatar
+USER |o--o{ MEDIA : sube
+CATEGORY ||--o{ QUESTION
+QUESTION ||--o{ OPTION
+MEDIA |o--o{ QUESTION
+MEDIA |o--o{ OPTION
+GAME ||--o{ GAME_Q
+QUESTION ||--o{ GAME_Q
+USER ||--o{ SESSION
+GAME ||--o{ SESSION
+SESSION ||--o{ ANSWER
+QUESTION ||--o{ ANSWER
+OPTION ||--o{ ANSWER
+
+STORY ||--o{ PANEL
+STORY ||--o{ PARTICIPANT
+STORY ||--o{ LIKE
+STORY ||--o{ MODLOG
+USER ||--o{ PARTICIPANT
+USER ||--o{ LIKE
+USER |o--o{ PANEL : autor
+USER |o--o{ STORY : quitó
+USER |o--o{ MODLOG : admin
 
 @enduml

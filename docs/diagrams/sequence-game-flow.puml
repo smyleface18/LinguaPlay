@@ -1,54 +1,66 @@
 @startuml
+' Partida de trivia. Fuente: modules/game (GameGateway, GameService,
+' MatchService, GameQueueService/Processor, MatchResultsService).
 skinparam sequenceMessageAlign center
 skinparam ParticipantPadding 14
 
-actor "Player" as Player
+actor "Jugador" as Player
 participant "LP-MOB" as Mobile
-participant "SocketService" as SocketService
-participant "GameGateway" as Gateway
+participant "GameGateway\n(/game)" as Gateway
+participant "GameService" as GameService
 participant "MatchService" as MatchService
 participant "QuestionService" as QuestionService
-participant "CacheService (Redis)" as Cache
-participant "GameService" as GameService
-participant "EventEmitter" as Events
-participant "GameTimeoutQueue (BullMQ)" as Queue
-participant "GameTimeoutProcessor" as Processor
+database "Redis\n(MatchStore)" as Store
+queue "BullMQ\ngame-question-timeout" as Queue
+database "PostgreSQL" as DB
 
-== Create or Join Match ==
-Player -> Mobile: Select level / room
-Mobile -> SocketService: createGame(level, mode)
-SocketService -> Gateway: emit createGame
+== Crear o unirse a una sala ==
+Player -> Mobile: Elegir nivel y modo
+Mobile -> Gateway: createGame(level, mode)
 Gateway -> MatchService: createMatch(level, mode, owner)
 MatchService -> QuestionService: getRandomQuestions(level)
-QuestionService --> MatchService: questions
-MatchService -> Cache: set(match)
-Gateway -> Gateway: join socket room
-Gateway -> Mobile: gameCreated(roomId, level, mode)
-Gateway -> Mobile: playersUpdated(players)
+MatchService -> Store: create(match) + sala del usuario
+Gateway --> Mobile: ack { roomId, level, modeMatch } + playersUpdated
+... o ...
+Player -> Mobile: Código de la sala
+Mobile -> Gateway: joinGame(roomId)
+Gateway -> MatchService: joinMatch (con lock de la sala)
+Gateway --> Mobile: ack { roomId } + playersUpdated (a la sala)
 
-... or ...
-Player -> Mobile: Enter roomId
-Mobile -> SocketService: joinGame(roomId)
-SocketService -> Gateway: emit joinGame
-Gateway -> MatchService: joinMatch(roomId, user)
-MatchService -> Cache: set(match)
-Gateway -> Mobile: gameJoined(roomId, level, mode)
-Gateway -> Mobile: playersUpdated(players)
-
-== Start Match and Question Loop ==
-Player -> Mobile: Tap Start
-Mobile -> SocketService: startGame()
-SocketService -> Gateway: emit startGame
+== Inicio ==
+Player -> Mobile: Empezar
+Mobile -> Gateway: startGame()
 Gateway -> GameService: start(roomId, userId)
-GameService -> MatchService: startMatch(roomId, userId)
-MatchService -> Cache: set(match)
-GameService -> Events: emit game.starting(roomId, delay)
-Events -> Queue: scheduleQuestionStart(delay)
-Queue -> Processor: start-question job
-Processor -> GameService: startQuestion(roomId)
-GameService -> MatchService: nextQuestion(roomId)
-MatchService -> Cache: set(match)
-GameService -> Events: emit game.next-question
-Gateway -> Mobile: newQuestion(question, timeLimit)
+GameService -> MatchService: startMatch
+GameService -> Queue: publish-question (dueAt)
+Gateway --> Mobile: gameStarted(firstQuestionAt)
+
+== Ciclo de preguntas ==
+loop mientras queden preguntas
+  Queue -> GameService: publishQuestion(roomId, seq)
+  GameService -> MatchService: publishNextQuestion
+  GameService -> Queue: close-question (endsAt + gracia)
+  Gateway --> Mobile: newQuestion(pregunta, startsAt, endsAt)
+  Player -> Mobile: Elegir opción
+  Mobile -> Gateway: answer(questionId, answerId)
+  Gateway -> MatchService: processAnswer (hora de llegada)
+  Gateway --> Mobile: answerResult (al jugador)
+  Gateway --> Mobile: playersUpdated (a la sala)
+  alt todos respondieron
+    Gateway -> GameService: closeQuestionIfAllAnswered
+  else vence el tiempo
+    Queue -> GameService: closeQuestion(roomId, seq)
+  end
+  Gateway --> Mobile: questionEnded(nextQuestionAt)
+end
+
+== Fin ==
+GameService -> MatchService: finishMatch
+MatchService -> DB: persist (game, game_session,\nplayer_answer, métricas del user)
+Gateway --> Mobile: gameEnded(results)
+opt revancha
+  Mobile -> Gateway: requestRematch()
+  Gateway --> Mobile: rematchStatus / rematchReady
+end
 
 @enduml

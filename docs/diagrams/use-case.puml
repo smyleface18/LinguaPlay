@@ -1,53 +1,95 @@
 @startuml
+' Casos de uso de LinguaPlay (LP-MOB + LP-API).
+' Fuente: controllers REST y gateways Socket.IO de apps/LP-API/src/modules.
 left to right direction
 skinparam packageStyle rectangle
 skinparam actorStyle awesome
 
-actor "Player" as Player
-actor "Admin" as Admin
+actor "Jugador" as Player
+actor "Administrador" as Admin
 actor "AWS Cognito" as Cognito
+actor "Servicios de IA\n(Bedrock, Polly,\nCloudflare Workers AI)" as AI
 
-rectangle "LinguaPlay System" {
-  usecase "Sign up" as UC_SignUp
-  usecase "Sign in" as UC_SignIn
-  usecase "Refresh token" as UC_Refresh
-  usecase "View profile" as UC_Profile
-  usecase "Sign out" as UC_SignOut
+Admin -|> Player
 
-  usecase "Play game" as UC_Play
-  usecase "Create match" as UC_Create
-  usecase "Join match" as UC_Join
-  usecase "Start match" as UC_Start
-  usecase "Answer question" as UC_Answer
-  usecase "View results" as UC_Results
+rectangle "LinguaPlay" {
+  package "Cuenta" {
+    usecase "Registrarse" as UC_SignUp
+    usecase "Iniciar sesión" as UC_SignIn
+    usecase "Renovar sesión" as UC_Refresh
+    usecase "Cerrar sesión" as UC_SignOut
+    usecase "Ver perfil y estadísticas" as UC_Profile
+  }
 
-  usecase "Manage categories" as UC_Categories
-  usecase "Manage questions" as UC_Questions
-  usecase "Manage question options" as UC_Options
+  package "Trivia" {
+    usecase "Jugar trivia" as UC_Trivia
+    usecase "Crear sala\n(sola o multijugador)" as UC_Create
+    usecase "Unirse a sala con código" as UC_Join
+    usecase "Responder pregunta" as UC_Answer
+    usecase "Ver resultados\ny pedir revancha" as UC_Results
+  }
+
+  package "Historieta" {
+    usecase "Jugar historieta" as UC_Story
+    usecase "Crear o unirse\na un lobby" as UC_StoryLobby
+    usecase "Escribir viñeta\ny crear personajes" as UC_Panel
+    usecase "Recibir revisión\nde inglés" as UC_Review
+    usecase "Ver review narrado\ncon imágenes" as UC_StoryReview
+    usecase "Reaccionar a una viñeta" as UC_React
+  }
+
+  package "Historietas guardadas" {
+    usecase "Ver mis historietas" as UC_History
+    usecase "Explorar catálogo\n(búsqueda y nivel)" as UC_Catalog
+    usecase "Dar like a una historieta" as UC_Like
+  }
+
+  package "Administración (solo web)" {
+    usecase "Ver dashboard de la app" as UC_AdminStats
+    usecase "Gestionar categorías" as UC_Categories
+    usecase "Gestionar preguntas\ny opciones" as UC_Questions
+    usecase "Subir multimedia" as UC_Media
+    usecase "Moderar historietas\n(quitar / restaurar)" as UC_Moderate
+    usecase "Regenerar imágenes\nfaltantes" as UC_Regen
+  }
 }
 
 Player --> UC_SignUp
 Player --> UC_SignIn
 Player --> UC_Refresh
-Player --> UC_Profile
 Player --> UC_SignOut
+Player --> UC_Profile
 
-Player --> UC_Play
-UC_Play ..> UC_Create : <<include>>
-UC_Play ..> UC_Join : <<include>>
-UC_Play ..> UC_Start : <<include>>
-UC_Play ..> UC_Answer : <<include>>
-UC_Play ..> UC_Results : <<include>>
+Player --> UC_Trivia
+UC_Trivia ..> UC_Create : <<include>>
+UC_Trivia ..> UC_Answer : <<include>>
+UC_Trivia ..> UC_Results : <<include>>
+UC_Join ..> UC_Trivia : <<extend>>
 
-Admin --> UC_SignIn
-Admin --> UC_Refresh
-Admin --> UC_SignOut
+Player --> UC_Story
+UC_Story ..> UC_StoryLobby : <<include>>
+UC_Story ..> UC_Panel : <<include>>
+UC_Panel ..> UC_Review : <<include>>
+UC_Story ..> UC_StoryReview : <<include>>
+UC_React ..> UC_StoryReview : <<extend>>
+
+Player --> UC_History
+Player --> UC_Catalog
+UC_React ..> UC_Catalog : <<extend>>
+UC_Like ..> UC_Catalog : <<extend>>
+
+Admin --> UC_AdminStats
 Admin --> UC_Categories
 Admin --> UC_Questions
-Admin --> UC_Options
+UC_Questions ..> UC_Media : <<include>>
+Admin --> UC_Moderate
+UC_Regen ..> UC_Moderate : <<extend>>
 
-Cognito <-- UC_SignUp
-Cognito <-- UC_SignIn
-Cognito <-- UC_Refresh
+UC_SignUp --> Cognito
+UC_SignIn --> Cognito
+UC_Refresh --> Cognito
+UC_Review --> AI
+UC_StoryReview --> AI
+UC_Regen --> AI
 
 @enduml

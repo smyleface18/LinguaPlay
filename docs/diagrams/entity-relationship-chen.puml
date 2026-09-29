@@ -1,140 +1,207 @@
 @startuml
+' Diagrama entidad-relación (notación de Chen) de la base de datos.
+' Por legibilidad se muestran solo los atributos principales; el detalle de
+' columnas está en relational-model.puml.
 left to right direction
 skinparam linetype ortho
 skinparam roundcorner 6
 skinparam shadowing false
 skinparam classAttributeIconSize 0
 
-' Chen notation (PlantUML-safe):
-' - Entities: class with E (rectangle)
-' - Relationships: class with D (diamond)
-' - Attributes: class with O (oval)
+' Notación de Chen (compatible con PlantUML):
+' - Entidades: clase con E (rectángulo)
+' - Relaciones: clase con D (rombo)
+' - Atributos: clase con O (óvalo); los subrayados (__x__) son claves
 
 hide members
 hide methods
 
-class "USER" as USER << (E,#E0E0E0) >>
-class "GAME" as GAME << (E,#E0E0E0) >>
-class "GAME_SESSION" as GAME_SESSION << (E,#E0E0E0) >>
-class "CATEGORY_QUESTION" as CATEGORY_QUESTION << (E,#E0E0E0) >>
-class "QUESTION" as QUESTION << (E,#E0E0E0) >>
-class "QUESTION_OPTION" as QUESTION_OPTION << (E,#E0E0E0) >>
-class "PLAYER_ANSWER" as PLAYER_ANSWER << (E,#E0E0E0) >>
+' ---------- Entidades ----------
+class "USUARIO" as USER << (E,#E0E0E0) >>
+class "MULTIMEDIA" as MEDIA << (E,#E0E0E0) >>
+class "CATEGORÍA" as CATEGORY << (E,#E0E0E0) >>
+class "PREGUNTA" as QUESTION << (E,#E0E0E0) >>
+class "OPCIÓN" as OPTION << (E,#E0E0E0) >>
+class "PARTIDA" as GAME << (E,#E0E0E0) >>
+class "SESIÓN DE JUEGO" as SESSION << (E,#E0E0E0) >>
+class "RESPUESTA" as ANSWER << (E,#E0E0E0) >>
+class "HISTORIETA" as STORY << (E,#E0E0E0) >>
+class "VIÑETA" as PANEL << (E,#E0E0E0) >>
+class "REGISTRO DE MODERACIÓN" as MODLOG << (E,#E0E0E0) >>
 
-' Attributes
-class "id" as USER_id << (O,#FFFFFF) >>
+' ---------- Atributos principales ----------
+class "__id__" as USER_id << (O,#FFFFFF) >>
 class "username" as USER_username << (O,#FFFFFF) >>
 class "email" as USER_email << (O,#FFFFFF) >>
-class "score" as USER_score << (O,#FFFFFF) >>
-class "userRole" as USER_userRole << (O,#FFFFFF) >>
+class "userRole" as USER_role << (O,#FFFFFF) >>
 class "level" as USER_level << (O,#FFFFFF) >>
-class "avatar" as USER_avatar << (O,#FFFFFF) >>
+class "score" as USER_score << (O,#FFFFFF) >>
 
-class "id" as GAME_id << (O,#FFFFFF) >>
-class "difficulty" as GAME_difficulty << (O,#FFFFFF) >>
+class "__id__" as MEDIA_id << (O,#FFFFFF) >>
+class "key" as MEDIA_key << (O,#FFFFFF) >>
+class "contentType" as MEDIA_type << (O,#FFFFFF) >>
+class "status" as MEDIA_status << (O,#FFFFFF) >>
 
-class "id" as GS_id << (O,#FFFFFF) >>
-class "userId" as GS_userId << (O,#FFFFFF) >>
-class "gameId" as GS_gameId << (O,#FFFFFF) >>
+class "__id__" as CQ_id << (O,#FFFFFF) >>
+class "level" as CQ_level << (O,#FFFFFF) >>
+class "type" as CQ_type << (O,#FFFFFF) >>
+class "descriptionCategory" as CQ_desc << (O,#FFFFFF) >>
+
+class "__id__" as Q_id << (O,#FFFFFF) >>
+class "text" as Q_text << (O,#FFFFFF) >>
+class "contentType" as Q_type << (O,#FFFFFF) >>
+class "timeLimit" as Q_time << (O,#FFFFFF) >>
+
+class "__id__" as QO_id << (O,#FFFFFF) >>
+class "text" as QO_text << (O,#FFFFFF) >>
+class "isCorrect" as QO_correct << (O,#FFFFFF) >>
+
+class "__id__" as GAME_id << (O,#FFFFFF) >>
+class "difficulty" as GAME_diff << (O,#FFFFFF) >>
+
+class "__id__" as GS_id << (O,#FFFFFF) >>
 class "score" as GS_score << (O,#FFFFFF) >>
 class "position" as GS_position << (O,#FFFFFF) >>
 
-class "id" as CQ_id << (O,#FFFFFF) >>
-class "level" as CQ_level << (O,#FFFFFF) >>
-class "descriptionCategory" as CQ_desc << (O,#FFFFFF) >>
-class "type" as CQ_type << (O,#FFFFFF) >>
+class "__id__" as PA_id << (O,#FFFFFF) >>
+class "isCorrect" as PA_correct << (O,#FFFFFF) >>
+class "timeTaken" as PA_time << (O,#FFFFFF) >>
 
-class "id" as Q_id << (O,#FFFFFF) >>
-class "content" as Q_content << (O,#FFFFFF) >>
-class "moreInfo" as Q_moreInfo << (O,#FFFFFF) >>
-class "categoryId" as Q_categoryId << (O,#FFFFFF) >>
-class "timeLimit" as Q_timeLimit << (O,#FFFFFF) >>
+class "__id__" as S_id << (O,#FFFFFF) >>
+class "gameId" as S_game << (O,#FFFFFF) >>
+class "title" as S_title << (O,#FFFFFF) >>
+class "level" as S_level << (O,#FFFFFF) >>
+class "visibility" as S_visibility << (O,#FFFFFF) >>
+class "finishedAt" as S_finished << (O,#FFFFFF) >>
 
-class "id" as QO_id << (O,#FFFFFF) >>
-class "content" as QO_content << (O,#FFFFFF) >>
-class "isCorrect" as QO_isCorrect << (O,#FFFFFF) >>
-class "questionId" as QO_questionId << (O,#FFFFFF) >>
+class "__id__" as P_id << (O,#FFFFFF) >>
+class "order" as P_order << (O,#FFFFFF) >>
+class "finalText" as P_text << (O,#FFFFFF) >>
+class "reactions" as P_reactions << (O,#FFFFFF) >>
+class "imageKey / audioKey" as P_media << (O,#FFFFFF) >>
 
-class "id" as PA_id << (O,#FFFFFF) >>
-class "gameSessionId" as PA_gameSessionId << (O,#FFFFFF) >>
-class "questionId" as PA_questionId << (O,#FFFFFF) >>
-class "selectedOptionId" as PA_selectedOptionId << (O,#FFFFFF) >>
-class "isCorrect" as PA_isCorrect << (O,#FFFFFF) >>
-class "timeTaken" as PA_timeTaken << (O,#FFFFFF) >>
+class "__id__" as ML_id << (O,#FFFFFF) >>
+class "action" as ML_action << (O,#FFFFFF) >>
+class "reason" as ML_reason << (O,#FFFFFF) >>
 
-' Many-to-many relation represented directly in Chen notation.
-class "HAS_QUESTION" as R_GAME_QUESTION << (D,#F2C94C) >>
-GAME -- R_GAME_QUESTION
-R_GAME_QUESTION -- QUESTION
+' ---------- Relaciones ----------
+class "AGRUPA" as R_CAT_Q << (D,#F2C94C) >>
+CATEGORY "1" -- R_CAT_Q
+R_CAT_Q -- "N" QUESTION
 
-' Relationships (diamonds)
-class "HAS_SESSION" as R_USER_SESSION << (D,#F2C94C) >>
-class "HAS_SESSION" as R_GAME_SESSION << (D,#F2C94C) >>
+class "TIENE" as R_Q_OPT << (D,#F2C94C) >>
+QUESTION "1" -- R_Q_OPT
+R_Q_OPT -- "N" OPTION
 
-USER -- R_USER_SESSION
-GAME -- R_GAME_SESSION
-R_USER_SESSION -- GAME_SESSION
-R_GAME_SESSION -- GAME_SESSION
+class "USA" as R_Q_MEDIA << (D,#F2C94C) >>
+QUESTION "N" -- R_Q_MEDIA
+OPTION "N" -- R_Q_MEDIA
+R_Q_MEDIA -- "0..1" MEDIA
 
-class "GROUPS" as R_CATEGORY_QUESTION << (D,#F2C94C) >>
-CATEGORY_QUESTION -- R_CATEGORY_QUESTION
-R_CATEGORY_QUESTION -- QUESTION
+class "AVATAR" as R_USER_MEDIA << (D,#F2C94C) >>
+USER "N" -- R_USER_MEDIA
+R_USER_MEDIA -- "0..1" MEDIA
 
-class "HAS_OPTION" as R_QUESTION_OPTION << (D,#F2C94C) >>
-QUESTION -- R_QUESTION_OPTION
-R_QUESTION_OPTION -- QUESTION_OPTION
+class "INCLUYE" as R_GAME_Q << (D,#F2C94C) >>
+GAME "N" -- R_GAME_Q
+R_GAME_Q -- "M" QUESTION
 
-class "RECORDED_IN" as R_SESSION_ANSWER << (D,#F2C94C) >>
-GAME_SESSION -- R_SESSION_ANSWER
-R_SESSION_ANSWER -- PLAYER_ANSWER
+class "JUEGA" as R_USER_SESSION << (D,#F2C94C) >>
+USER "1" -- R_USER_SESSION
+R_USER_SESSION -- "N" SESSION
 
-class "REFERENCES" as R_ANSWER_QUESTION << (D,#F2C94C) >>
-QUESTION -- R_ANSWER_QUESTION
-R_ANSWER_QUESTION -- PLAYER_ANSWER
+class "PERTENECE" as R_GAME_SESSION << (D,#F2C94C) >>
+GAME "1" -- R_GAME_SESSION
+R_GAME_SESSION -- "N" SESSION
 
-class "SELECTS" as R_ANSWER_OPTION << (D,#F2C94C) >>
-QUESTION_OPTION -- R_ANSWER_OPTION
-R_ANSWER_OPTION -- PLAYER_ANSWER
+class "REGISTRA" as R_SESSION_ANSWER << (D,#F2C94C) >>
+SESSION "1" -- R_SESSION_ANSWER
+R_SESSION_ANSWER -- "N" ANSWER
 
-' Link attributes to entities
+class "RESPONDE" as R_ANSWER_Q << (D,#F2C94C) >>
+ANSWER "N" -- R_ANSWER_Q
+R_ANSWER_Q -- "1" QUESTION
+
+class "ELIGE" as R_ANSWER_OPT << (D,#F2C94C) >>
+ANSWER "N" -- R_ANSWER_OPT
+R_ANSWER_OPT -- "1" OPTION
+
+class "COMPONE" as R_STORY_PANEL << (D,#F2C94C) >>
+STORY "1" -- R_STORY_PANEL
+R_STORY_PANEL -- "N" PANEL
+
+class "ESCRIBE" as R_USER_PANEL << (D,#F2C94C) >>
+USER "0..1" -- R_USER_PANEL
+R_USER_PANEL -- "N" PANEL
+
+class "PARTICIPA\n(puesto, puntaje)" as R_PARTICIPA << (D,#F2C94C) >>
+USER "N" -- R_PARTICIPA
+R_PARTICIPA -- "M" STORY
+
+class "LE GUSTA" as R_LIKE << (D,#F2C94C) >>
+USER "N" -- R_LIKE
+R_LIKE -- "M" STORY
+
+class "MODERA" as R_MODERA << (D,#F2C94C) >>
+STORY "1" -- R_MODERA
+R_MODERA -- "N" MODLOG
+class "ACTÚA" as R_ADMIN << (D,#F2C94C) >>
+USER "0..1" -- R_ADMIN
+R_ADMIN -- "N" MODLOG
+
+' ---------- Atributos de cada entidad ----------
 USER -- USER_id
 USER -- USER_username
 USER -- USER_email
-USER -- USER_score
-USER -- USER_userRole
+USER -- USER_role
 USER -- USER_level
-USER -- USER_avatar
+USER -- USER_score
 
-GAME -- GAME_id
-GAME -- GAME_difficulty
+MEDIA -- MEDIA_id
+MEDIA -- MEDIA_key
+MEDIA -- MEDIA_type
+MEDIA -- MEDIA_status
 
-GAME_SESSION -- GS_id
-GAME_SESSION -- GS_userId
-GAME_SESSION -- GS_gameId
-GAME_SESSION -- GS_score
-GAME_SESSION -- GS_position
-
-CATEGORY_QUESTION -- CQ_id
-CATEGORY_QUESTION -- CQ_level
-CATEGORY_QUESTION -- CQ_desc
-CATEGORY_QUESTION -- CQ_type
+CATEGORY -- CQ_id
+CATEGORY -- CQ_level
+CATEGORY -- CQ_type
+CATEGORY -- CQ_desc
 
 QUESTION -- Q_id
-QUESTION -- Q_content
-QUESTION -- Q_moreInfo
-QUESTION -- Q_categoryId
-QUESTION -- Q_timeLimit
+QUESTION -- Q_text
+QUESTION -- Q_type
+QUESTION -- Q_time
 
-QUESTION_OPTION -- QO_id
-QUESTION_OPTION -- QO_content
-QUESTION_OPTION -- QO_isCorrect
-QUESTION_OPTION -- QO_questionId
+OPTION -- QO_id
+OPTION -- QO_text
+OPTION -- QO_correct
 
-PLAYER_ANSWER -- PA_id
-PLAYER_ANSWER -- PA_gameSessionId
-PLAYER_ANSWER -- PA_questionId
-PLAYER_ANSWER -- PA_selectedOptionId
-PLAYER_ANSWER -- PA_isCorrect
-PLAYER_ANSWER -- PA_timeTaken
+GAME -- GAME_id
+GAME -- GAME_diff
+
+SESSION -- GS_id
+SESSION -- GS_score
+SESSION -- GS_position
+
+ANSWER -- PA_id
+ANSWER -- PA_correct
+ANSWER -- PA_time
+
+STORY -- S_id
+STORY -- S_game
+STORY -- S_title
+STORY -- S_level
+STORY -- S_visibility
+STORY -- S_finished
+
+PANEL -- P_id
+PANEL -- P_order
+PANEL -- P_text
+PANEL -- P_reactions
+PANEL -- P_media
+
+MODLOG -- ML_id
+MODLOG -- ML_action
+MODLOG -- ML_reason
 
 @enduml

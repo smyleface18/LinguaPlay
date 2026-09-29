@@ -1,43 +1,100 @@
 @startuml
+' Componentes de LinguaPlay: features de LP-MOB, módulos de LP-API y
+' servicios externos. Fuente: app.module.ts y src/features de LP-MOB.
 skinparam componentStyle rectangle
+top to bottom direction
 
-package "LP-MOB (React Native) / LP-WEB (React)" {
-  [Auth Screens]
-  [Game Screens]
-  [Category/Question Screens]
-  [SocketService]
+package "LP-MOB (Expo / React Native, Android y web)" {
+  [Navegación\n(MainTabs / MainTabs.web)] as Nav
+  [auth\n(inicio de sesión, perfil)] as MobAuth
+  [game\n(Arena, trivia)] as MobGame
+  [story\n(historieta, review,\nMy stories, Explorar)] as MobStory
+  [story/admin\n(moderación, solo web)] as MobStoryAdmin
+  [category / question\n(administración, solo web)] as MobAdmin
+  [stats\n(dashboards)] as MobStats
+  [shared/api\n(cliente HTTP)] as Http
+  [Sockets\n(/game y /story)] as Sockets
 }
 
 package "LP-API (NestJS)" {
-  [AuthModule]
-  [GameModule]
-  [QuestionModule]
-  [CategoryQuestionModule]
-  [QuestionOptionsModule]
-  [WS Gateway]
+  [AuthModule] as Auth
+  [WsAuthModule] as WsAuth
+  [CategoryQuestionModule\nQuestionModule\nQuestionOptionsModule] as Content
+  [MediaModule] as Media
+  [GameModule + MatchModule\n(gateway /game)] as Game
+  [GameQueueModule] as GameQueue
+  [StoryGameModule\n(gateway /story)] as StoryGame
+  [LanguageReviewModule] as Review
+  [StoryMediaModule] as StoryMedia
+  [StoryQueueModule] as StoryQueue
+  [StoryHistoryModule\n(historial, catálogo,\nlikes, moderación)] as StoryHistory
+  [StatsModule] as Stats
+  [DatabaseModule\n(TypeORM)] as Db
 }
 
-cloud "AWS Cognito" as Cognito
-queue "BullMQ" as Queue
-node "Redis" as Redis
-database "SQL Database" as DB
+package "Datos" {
+  database "PostgreSQL 15" as PG
+  database "Redis" as Redis
+}
+queue "BullMQ\n(game-question-timeout,\nstory-turn-timeout, story-media)" as Bull
+cloud "AWS" {
+  [Cognito] as Cognito
+  [S3] as S3
+  [Bedrock\n(Nova 2 Lite)] as Bedrock
+  [Polly] as Polly
+}
+cloud "Cloudflare Workers AI\n(FLUX.1 schnell)" as CF
 
-[Auth Screens] --> [AuthModule] : REST /auth
-[Category/Question Screens] --> [QuestionModule] : REST /question
-[Category/Question Screens] --> [CategoryQuestionModule] : REST /category-question
-[Category/Question Screens] --> [QuestionOptionsModule] : REST /question-options
+Nav --> MobAuth
+Nav --> MobGame
+Nav --> MobStory
+Nav --> MobStoryAdmin
+Nav --> MobAdmin
+Nav --> MobStats
 
-[Game Screens] --> [SocketService]
-[SocketService] --> [WS Gateway] : Socket.io
+MobAuth --> Http
+MobAdmin --> Http
+MobStats --> Http
+MobStory --> Http
+MobStoryAdmin --> Http
+MobGame --> Sockets
+MobStory --> Sockets
 
-[WS Gateway] --> [GameModule] : uses GameService
+Http --> Auth : REST /auth
+Http --> Content : REST (ADMIN)
+Http --> Media : REST /media (ADMIN)
+Http --> StoryHistory : REST /story, /admin/stories
+Http --> Stats : REST /stats, /admin/stats
+Sockets --> Game : Socket.IO /game
+Sockets --> StoryGame : Socket.IO /story
 
-[AuthModule] --> Cognito
-[GameModule] --> Redis : cache + match state
-[GameModule] --> Queue : question timeouts
-[QuestionModule] --> DB
-[CategoryQuestionModule] --> DB
-[QuestionOptionsModule] --> DB
-[AuthModule] --> DB : users
+Game ..> WsAuth
+StoryGame ..> WsAuth
+Auth --> Cognito
+WsAuth --> Cognito : verifica JWT
+
+Game --> Redis : estado de la sala
+Game --> GameQueue
+GameQueue --> Bull
+StoryGame --> Redis : estado de la historieta
+StoryGame --> Review
+Review --> Bedrock
+StoryGame --> StoryQueue
+StoryQueue --> Bull
+StoryQueue --> StoryMedia
+StoryMedia --> Polly : audio
+StoryMedia --> CF : imágenes
+StoryMedia --> S3 : guarda media
+StoryGame ..> StoryHistory : evento story.finished
+StoryHistory --> S3 : URLs firmadas
+Media --> S3 : URLs prefirmadas
+
+Auth --> Db
+Content --> Db
+Media --> Db
+Game --> Db : resultados
+StoryHistory --> Db
+Stats --> Db
+Db --> PG
 
 @enduml

@@ -1,0 +1,53 @@
+@startuml
+' Moderación de historietas por un administrador (solo web).
+' Fuente: modules/story-history (StoryAdminController, StoryAdminService).
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 14
+
+actor "Administrador" as Admin
+participant "LP-MOB web\n(Historietas)" as Web
+participant "StoryAdminController\n(/admin/stories)" as Ctrl
+participant "StoryAdminService" as Service
+database "PostgreSQL" as DB
+participant "StoryGameService" as Game
+database "Redis" as Redis
+queue "BullMQ story-media" as Queue
+participant "Cloudflare Workers AI\n+ S3" as Ext
+
+note over Ctrl: JwtAuthGuard + RolesGuard(ADMIN)
+
+== Consultar ==
+Admin -> Web: Abrir Historietas
+Web -> Ctrl: GET /admin/stories?visibility&search
+Ctrl -> Service: list
+Service -> DB: historietas + participantes
+Web -> Ctrl: GET /admin/stories/:storyId
+Service -> DB: detalle + historial de moderación
+
+== Quitar ==
+Admin -> Web: Quitar historieta (motivo y nota)
+Web -> Ctrl: POST /admin/stories/:storyId/remove
+Ctrl -> Service: remove(storyId, adminId, motivo)
+Service -> DB: UPDATE story (solo si PUBLISHED)\n+ INSERT story_moderation_log\n(una transacción)
+alt otro admin ya la quitó
+  Service --> Ctrl: 409 Conflict
+end
+Service -> Game: discardFinishedStory(gameId)
+Game -> Redis: borra el review en vivo
+Ctrl --> Web: detalle actualizado
+
+== Restaurar ==
+Admin -> Web: Restaurar
+Web -> Ctrl: POST /admin/stories/:storyId/restore
+Service -> DB: UPDATE story (solo si REMOVED)\n+ INSERT story_moderation_log
+
+== Regenerar imágenes faltantes ==
+Admin -> Web: Regenerar imágenes faltantes
+Web -> Ctrl: POST /admin/stories/:storyId/regenerate-images
+Service -> Queue: panel-image-regen por viñeta sin imagen
+Ctrl --> Web: { queued, orders }
+Queue -> Ext: dibujar y guardar imagen
+Queue -> DB: UPDATE story_panel.imageKey
+Web -> Ctrl: GET detalle (cada 10 s hasta que lleguen)
+
+@enduml
