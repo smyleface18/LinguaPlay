@@ -16,7 +16,7 @@ node "Servidor Docker (docker compose)" as Host {
   node "contenedor web\n(nginx:alpine, puerto 8080)" as WebNode {
     artifact "estáticos de LP-MOB web" as Static
   }
-  node "contenedor api\n(node:20-alpine, puerto 3000)" as ApiNode {
+  node "contenedor api\n(node:22-alpine, puerto 3000)" as ApiNode {
     artifact "LP-API (NestJS)\nmigraciones al arrancar" as Api
   }
   node "contenedor postgres\n(postgres:15)" as PgNode {
