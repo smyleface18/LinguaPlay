@@ -104,7 +104,10 @@ Los módulos principales registrados en `AppModule` son:
 - `MatchModule`: creación, unión y estado de partidas.
 - `GameQueueModule`: trabajos temporizados de las partidas.
 - `StoryGameModule`: modo Historieta (namespace `/story`): lobby y turnos, con estado en Redis.
-- `StoryQueueModule`: tareas diferidas del modo Historieta (cola BullMQ `story-turn-timeout`: cierre de turnos y abandono).
+- `StoryQueueModule`: colas BullMQ del modo Historieta: `story-turn-timeout` (cierre de turnos, abandono y plazo de la media) y `story-media` (una tarea por viñeta).
+- `StoryMediaModule`: audio narrado con Amazon Polly (con las marcas de tiempo de cada palabra) e imágenes con Cloudflare Workers AI (FLUX.1 schnell, `IMAGE_PROVIDER=cloudflare`), con 5 intentos de 30 s por imagen. Detalle en `apps/LP-API/src/modules/story-media/README.md`.
+- `StoryHistoryModule`: historietas terminadas en Postgres: historial de cada jugador, catálogo público, reacciones y likes guardados, y moderación de admin. Detalle en `apps/LP-API/src/modules/story-history/README.md`.
+- `StatsModule`: estadísticas del jugador (`/stats/me`) y de la app para el admin (`/admin/stats`).
 - `LanguageReviewModule`: revisión de inglés de los borradores con Amazon Nova 2 Lite en Bedrock (Converse API). Detalle en `apps/LP-API/src/modules/language-review/README.md`.
 - `WsAuthModule`: validación de tokens en conexiones WebSocket (`authenticateSocket` para `handleConnection`).
 - `CommonModule`: configuración, respuestas, filtros y utilidades compartidas.
@@ -142,7 +145,8 @@ LOBBY/PLAYING → ABANDONED (nadie conectado durante 60 s, o ya nadie puede volv
 3. Por turnos, cada autor escribe su viñeta (`submitPanelDraft`: texto, escenario, personajes existentes y nuevos), recibe la revisión y confirma (`confirmPanel`). Tiene como máximo 2 revisiones y `turnDurationSec` segundos; al vencer, se confirma su último borrador o la viñeta queda sin texto.
 4. Los personajes nuevos entran al elenco recién cuando se confirma la viñeta, y no cambian después.
 5. Con `shareDrafts` (configurable, activo por defecto), los demás ven cada borrador revisado del autor, con sus correcciones (`panelDraftReviewed`), y todos ven qué está haciendo el autor (`authorStatus`). Cualquier jugador puede reaccionar con un emoji a una viñeta confirmada (`reactToPanel`).
-6. Después de la última viñeta, la partida pasa a PROCESSING y de ahí a REVIEW: la sala recibe `storyReviewReady` con el manifiesto (viñetas, correcciones, puntajes, reacciones, personajes y ranking por promedio por viñeta), y los jugadores quedan libres para empezar otra partida. Luego pasa a FINISHED y queda 24 h en Redis, consultable con `getReviewManifest`. Por ahora sin audio (Polly llega en la Fase 4b) ni persistencia en Postgres (Fase 4c).
+6. Después de la última viñeta, la partida pasa a PROCESSING: el servidor narra cada viñeta con Polly y la dibuja con Cloudflare Workers AI (cola `story-media`), y la sala ve el avance con `storyProcessing`. Cuando la primera viñeta tiene su media pasa a REVIEW: la sala recibe `storyReviewReady` con el manifiesto (viñetas, correcciones, puntajes, reacciones, personajes, ranking por promedio por viñeta, audio con sus speech marks e imagen), y los jugadores quedan libres para empezar otra partida. El resto de la media llega por `panelMediaReady`.
+7. Cuando todas las viñetas tienen su media (y el título que genera la IA) pasa a FINISHED: queda 1 h en Redis para el review en vivo (consultable con `getReviewManifest`) y se guarda en Postgres, desde donde se consulta después por REST (`/story/history` para sus participantes y `/story/catalog` para todos). Un plazo de 3 minutos garantiza que la partida avance aunque la generación falle; un admin puede regenerar después las imágenes que falten.
 
 La revisión la hace Amazon Nova 2 Lite (Bedrock, `temperature: 0`) con un presupuesto de 8 s que incluye un reintento. Si falla, el borrador se acepta sin revisión: la IA nunca bloquea la partida. El jugador recibe las correcciones con explicaciones en español, pero no el texto corregido mientras la viñeta está abierta. El puntaje de cada viñeta lo calcula el servidor a partir de la cantidad de errores (`calculatePanelScore`).
 
@@ -156,7 +160,7 @@ Los jugadores guardan en Redis la key de S3 de su avatar, no la URL (las URLs fi
 
 Cada socket de `/story` entra a una sala personal `user:{userId}`, y la partida actual de cada usuario se lee de Redis en cada evento, así el servidor puede avisar o sacar de una sala a un usuario en cualquier instancia.
 
-El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL` (24 h para una partida FINISHED). Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
+El estado vive en Redis (`story:{gameId}`, `story:{gameId}:characters`, `story:{gameId}:panels`) con TTL `MATCH_TTL` (1 h para una partida FINISHED, `FINISHED_STORY_TTL_MS`). Cada cambio toma el lock de la partida (`RedisLockService`) y escribe con un script Lua que verifica el lock (fencing), igual que la trivia. Detalle en `apps/LP-API/src/modules/story-game/README.md`.
 
 ## 5. Tecnologías utilizadas
 
@@ -241,6 +245,11 @@ La base de datos utiliza PostgreSQL y se accede mediante TypeORM. La opción `sy
 - **QuestionOption:** contenido de una opción y marca de respuesta correcta.
 - **PlayerAnswer:** respuesta seleccionada, corrección y tiempo empleado.
 - **GameQuestion:** relación entre juegos y preguntas.
+- **Story:** historieta terminada del modo Historieta: partida de origen, nivel, idioma, elenco y fecha.
+- **StoryPanel:** viñeta de una historieta: autor, texto original y corregido, escenario, correcciones, puntaje, reacciones y keys de S3 del audio y la imagen.
+- **StoryParticipant:** jugador de una historieta con su puesto, viñetas y puntaje; define quién la ve en su historial.
+- **StoryLike:** like de un usuario a una historieta completa (uno por usuario e historieta).
+- **StoryModerationLog:** cada vez que un admin quitó o restauró una historieta, con motivo y nota.
 
 ### 7.3 Relaciones
 
@@ -266,6 +275,16 @@ La API se ejecuta por defecto en el puerto `3000`. Los endpoints identificados s
 | POST   | `/auth/signIn`            | Iniciar sesión                 |
 | POST   | `/auth/refresh-token`     | Renovar tokens                 |
 | GET    | `/auth/me`                | Obtener el usuario autenticado |
+| GET    | `/story/history`          | Historietas del usuario (paginado) |
+| GET    | `/story/history/:storyId` | Una historieta del historial (manifiesto, likes) |
+| GET    | `/story/catalog`          | Catálogo de historietas publicadas (búsqueda y nivel) |
+| GET    | `/story/catalog/:storyId` | Una historieta del catálogo (manifiesto, likes) |
+| PUT    | `/story/catalog/:storyId/panels/:order/reaction` | Guardar o quitar la reacción propia a una viñeta |
+| PUT/DELETE | `/story/catalog/:storyId/like` | Dar o quitar like a la historieta |
+| GET    | `/stats/me`               | Estadísticas del jugador       |
+| GET    | `/admin/stats`            | Estadísticas de la app (ADMIN) |
+| GET    | `/admin/stories`          | Historietas para moderar (ADMIN) |
+| POST   | `/admin/stories/:storyId/remove` · `/restore` · `/regenerate-images` | Moderación (ADMIN) |
 | POST   | `/auth/revoke-token`      | Revocar token de renovación    |
 | POST   | `/category-question`      | Crear categoría                |
 | GET    | `/category-question`      | Listar categorías              |
@@ -330,11 +349,13 @@ Mismo mecanismo de autenticación (`handshake.auth.token`). Los payloads se vali
 | `panelDraftReviewed`| Servidor → sala menos el autor | Borrador revisado y correcciones (sin el texto corregido; nunca uno `flagged`) |
 | `panelConfirmed`    | Servidor → sala     | Viñeta confirmada y personajes nuevos                          |
 | `panelReaction`     | Servidor → sala     | `gameId`, `order`, `userId`, `emoji` (null = quitada)          |
+| `storyProcessing`   | Servidor → sala     | Avance de la media en PROCESSING: `panelsTotal`, `panelsDone`  |
 | `storyReviewReady`  | Servidor → sala     | Manifiesto del review al entrar a REVIEW                       |
+| `panelMediaReady`   | Servidor → sala     | Audio (con speech marks) e imagen de una viñeta, firmados      |
 | `gameState`         | Servidor → jugador  | Estado completo al reconectarse                                |
 | `storyError`        | Servidor → emisor   | Error `{ ok, status, message, code }`                          |
 
-Eventos previstos para la Fase 4b: `storyProcessing`, `panelMediaReady`. El contrato del manifiesto está en el README del módulo.
+El contrato del manifiesto está en el README del módulo.
 
 ### 8.3 Respuestas y validación
 

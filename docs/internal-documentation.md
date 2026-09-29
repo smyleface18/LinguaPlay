@@ -99,7 +99,9 @@ BEDROCK_REGION=
 BEDROCK_REVIEW_MODEL_ID=***
 ```
 
-`BEDROCK_REVIEW_MODEL_ID` (Amazon Nova 2 Lite, model ID o inference profile) activa la revisión de inglés del modo Historieta; sin él, los borradores se aceptan sin revisión.
+`BEDROCK_REVIEW_MODEL_ID` (inference profile de Amazon Nova 2 Lite, ej. `us.amazon.nova-2-lite-v1:0`) activa la revisión de inglés del modo Historieta; sin él, los borradores se aceptan sin revisión. Con el model ID base, Bedrock responde "on-demand throughput isn't supported".
+
+La media del modo Historieta usa `POLLY_VOICE_ID` (voz neural, por defecto `Joanna`) y `POLLY_REGION` (vacío = `AWS_REGION`) para el audio, e `IMAGE_PROVIDER` para las imágenes: `none` (sin imágenes) o `cloudflare` (Workers AI, FLUX.1 schnell), que exige `CF_ACCOUNT_ID` y `CF_API_TOKEN` (token solo con permiso de Workers AI; `CF_IMAGE_MODEL` opcional). Permisos IAM: `polly:SynthesizeSpeech`, `bedrock:InvokeModel` (revisión y título) y `s3:PutObject` sobre `story/*`. Las tablas del historial, el catálogo, la moderación y los likes se crean con `yarn migration:run`.
 
 Los valores de AWS Cognito son específicos de cada entorno. No publicar secretos ni reutilizar credenciales sin autorización.
 
@@ -276,15 +278,14 @@ Jugador → Socket.IO /story → StoryGameGateway → StoryGameService
 → StoryStateRepository → Redis → eventos de sala → clientes
 ```
 
-`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Cada autor escribe con `submitPanelDraft` y confirma con `confirmPanel`; los personajes se crean durante los turnos. Al terminar, `StoryGameService.onProcessingStarted` es el único punto que lleva la partida de PROCESSING a REVIEW (`storyReviewReady` con el manifiesto) y a FINISHED; en la Fase 4b ahí se encola la generación de audio. Las tareas diferidas (cierre de turnos por tiempo y abandono de partidas vacías) van por la cola BullMQ `story-turn-timeout`. Las reglas de los turnos están en `domain/story-turns.ts`.
+`createStoryGame` crea el lobby y `joinStoryGame` incorpora jugadores. El anfitrión configura con `updateConfig`, puede expulsar con `kickPlayer` y comienza con `startStory`. Cada autor escribe con `submitPanelDraft` y confirma con `confirmPanel`; los personajes se crean durante los turnos. Al terminar, `StoryGameService.onProcessingStarted` es el único punto de la generación: pide la media de cada viñeta (cola `story-media`, `StoryMediaModule`), pasa a REVIEW cuando la primera viñeta la tiene y a FINISHED cuando la tienen todas; `StoryHistoryModule` la guarda en Postgres al llegar a FINISHED. Las tareas diferidas (cierre de turnos por tiempo y abandono de partidas vacías) van por la cola BullMQ `story-turn-timeout`. Las reglas de los turnos están en `domain/story-turns.ts`.
 
 ## 8. Pantallas y navegación
 
-`AppNavigator` selecciona:
+`AppNavigator` muestra `AuthStack` (`SignIn` y `Signup`) sin sesión y `MainTabs` con sesión:
 
-- `AuthStack`: `SignIn` y `Signup` cuando no hay sesión.
-- `UserStack`: `UserDashboard` y `GameScreen` para usuarios autenticados no administradores.
-- `AdminStack`: `AdminDashboard` para usuarios `ADMIN`.
+- Mobile (`MainTabs.tsx`), igual para jugadores y admins: **Arena** (cards de modo Historieta y Trivia), **Explorar** (catálogo de historietas con búsqueda y filtro por nivel) y **Perfil** (`UserDashboard`: estadísticas de `GET /stats/me`, acceso a "My stories" y cierre de sesión).
+- Web (`MainTabs.web.tsx`): lo mismo y, solo para `ADMIN`, **Dashboard** (`AdminDashboard`, `GET /admin/stats`), **Categorías**, **Preguntas** e **Historietas** (moderación). Metro resuelve `MainTabs.web.tsx` solo al bundlear para web, así que la administración no entra al bundle nativo.
 
 Pantallas principales:
 
@@ -295,9 +296,11 @@ Pantallas principales:
 - `GameLobby.screen.tsx`: espera de jugadores.
 - `GamePlay.screen.tsx`: preguntas y respuestas en tiempo real.
 - `GameResults.screen.tsx`: resultados de la partida.
-- `AdminDashboard.screen.tsx`: entrada a funciones administrativas.
+- `AdminDashboard.screen.tsx`: estadísticas de usuarios y de la app (solo web, rol `ADMIN`).
+- `StoryHistory` y `StoryHistoryDetail`: "My stories" y el catálogo; en el detalle se reacciona a cada viñeta y se da like a la historieta (se guardan en Postgres).
+- `ManageStories` y `AdminStoryDetail`: lista de historietas y moderación (quitar, restaurar, regenerar imágenes faltantes), solo web y `ADMIN`.
 - `ManageCategories`, `CreateCategory` y `CategoryDetail`: gestión de categorías.
-- `ManageQuestions`, `CreateQuestion` y `QuestionDetail`: gestión de preguntas y opciones.
+- `ManageQuestions`, `CreateQuestion` y `QuestionDetail`: gestión de preguntas y opciones. Activar o desactivar una categoría o pregunta se hace desde su detalle (las cards de la lista no tienen switch).
 
 Al añadir una pantalla, registrar la ruta en el stack correspondiente, documentar su rol permitido y enlazarla con el servicio o hook que consume. Ocultar un botón no sustituye la autorización del backend.
 
